@@ -2,6 +2,8 @@
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using System.Collections;
+using System.Diagnostics;
+using System.Reflection.Metadata;
 
 namespace LookForSpecialOffers
 {
@@ -11,10 +13,136 @@ namespace LookForSpecialOffers
         {
             using (IWebDriver driver = new ChromeDriver())
             {
-                driver.Navigate().GoToUrl("https://www.penny.de/");
-                string searchName = "//div[contains(@class, 'site-header__wrapper')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
-                var headerWrapper = FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 50);
+                string pathMainPage = "https://www.penny.de";
+                driver.Navigate().GoToUrl(pathMainPage);
+                
+                GoToOffersPage(driver, pathMainPage);
 
+                ScrollToBottom(driver, 30, 10);         // Es könnte sein, dass die Zeit nicht ausreicht. Vllt sollte ich, falls auf ein Element nicht zugegriffen werden kann, diese Methode wiederholen
+
+
+
+
+                string searchName = "//div[contains(@class, 'tabs__content-area')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
+                var articleContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
+                HtmlNode mainContainer1;
+                if (articleContainer != null )
+                {
+                    string xpathExpression = ".//section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']";
+                    string fromMonday = String.Concat(xpathExpression, "//div[@id='ab-montag']");
+                    string divs = String.Concat(xpathExpression, "//div[@class='js-category-section']");
+
+                    //xpathExpression = ".//section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']";
+                    //xpathExpression = ".//section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']//div[id=";
+
+                    mainContainer1 = articleContainer.SelectNodes(divs)[0];
+
+                    var subContainer1 = mainContainer1.SelectNodes("./section")[0];
+                    var headline = subContainer1.Attributes["id"].Value;
+
+                    var list = subContainer1.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
+
+                    var article1 = list.SelectNodes("./li")[2];
+
+                    //var articleName = ((HtmlNode)article1.SelectSingleNode("./div[@class='offer-tile__info-container']//h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']"));
+                    var info = article1.SelectSingleNode("./article[@class= 'tile offer-tile']//div[@class='offer-tile__info-container']");
+                    var articleName = ((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText;
+                    var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
+                    articlePricePerKg = ExtractPrice(articlePricePerKg);
+
+                    int iii = 9; //[@class= '']
+                }
+
+
+
+                driver.Quit();
+            }
+
+            static string ExtractPrice(string input)
+            {
+                // Teilen Sie den Eingabetext am "="-Zeichen
+                string[] parts = input.Split('=');
+
+                // Überprüfen, ob der Eingabetext das erwartete Format hat
+                if (parts.Length == 2)
+                {
+                    // Extrahieren Sie den Teil nach dem "="-Zeichen und entfernen Sie unnötige Leerzeichen
+                    string valuePart = parts[1].Trim();
+
+                    // Ersetzen Sie den Punkt durch ein Komma
+                    valuePart = valuePart.Replace('.', ',');
+
+
+                    // Zeigen Sie den Wert an
+                    Console.WriteLine(valuePart);
+
+                    return valuePart;
+                }
+                else
+                {
+                    Console.WriteLine("Ungültiges Eingabeformat");
+                    return string.Empty;
+                }
+            }
+
+
+
+            static void GoToOffersPage(IWebDriver driver, string pathMainPage)
+            {
+                string searchName = "//div[contains(@class, 'site-header__wrapper')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
+                var siteHeaderWrapperNode = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
+                if (siteHeaderWrapperNode != null)
+                {
+                    // XPath-Ausdruck, um das erste a-Element im ersten li-Element mit der angegebenen Klasse zu finden
+                    string xpathExpression = ".//div[@class='show-for-large']//nav[@class='site-header__nav']//div[@class='main-nav__container']//ul//li[@class='main-nav__item has-submenu'][1]//a[@href]";
+                    xpathExpression = ".//div[@class='site-header__container']//div[@class='show-for-large']//nav[@class='site-header__nav']//div[@class='main-nav__container']//ul//li[@class='main-nav__item has-submenu'][1]//a[@href]";
+                    // Das erste passende Element finden, beginnend von siteHeaderWrapperNode
+                    HtmlNode linkNode = siteHeaderWrapperNode.SelectSingleNode(xpathExpression);
+
+                    // Überprüfen, ob ein Element gefunden wurde, und den Wert des href-Attributs abrufen
+                    if (linkNode != null)
+                    {
+                        string hrefValue = linkNode.Attributes["href"].Value;
+                        string pathOffers = String.Concat(pathMainPage, hrefValue);
+                        driver.Navigate().GoToUrl(pathOffers);
+                        Debug.WriteLine("Der href-Wert des ersten a-Elements ist: " + hrefValue);
+                    }
+                    else
+                    {
+                        Debug.WriteLine("Das gewünschte Element wurde nicht gefunden.");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Der Node mit der Klasse 'site-header__wrapper' wurde nicht gefunden.");
+                }
+            }
+        }
+        /// <summary>
+        /// Scroll stufenweise nach unten, damit die Seite komplett geladen wird.
+        /// </summary>
+        /// <param name="driver"></param>
+        /// <param name="delayPerStep"></param>
+        /// <param name="steps"></param>
+        static void ScrollToBottom(IWebDriver driver, int delayPerStep = 10, int steps = 10)
+        {
+            IJavaScriptExecutor js = (IJavaScriptExecutor)driver;
+            long scrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");
+
+            long offset = scrollHeight / steps;
+            long newPos = 0;
+
+            for (int i = 0; i < steps; i++)
+            {
+                newPos += offset;
+
+                // Scrolle bis zum Ende der Seite
+
+                ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, {newPos});");
+                
+
+                // Warte eine kurze Zeit, um die Seite zu laden
+                System.Threading.Thread.Sleep(delayPerStep); // Wartezeit in Millisekunden anpassen
             }
         }
 
@@ -22,14 +150,14 @@ namespace LookForSpecialOffers
 
 
 
-
-
-        private static object FindObject(IWebDriver driver, string name, KindOfSearchElement searchElement, int interval = 500, int maxCount = 20)
+        private static object FindObject(IWebDriver driver, string name, KindOfSearchElement searchElement, int interval = 500, int maxSearchTimeInSeconds = 10)
         {
+            int maxRepeats = (int)(maxSearchTimeInSeconds / (interval/1000.0f));
+
             HtmlDocument doc = new HtmlDocument();
-            int count = 0;
+            int repeat = 0;
             object element = null;
-            while (count < maxCount)
+            while (repeat < maxRepeats)
             {
                 if (doc != null && driver != null)
                     doc.LoadHtml(driver.PageSource);
@@ -62,22 +190,29 @@ namespace LookForSpecialOffers
 
                 if (element != null)
                 {
-                    ICollection collection;
-                    try
+                    if (searchElement == KindOfSearchElement.FindElementsByCssSelector || searchElement == KindOfSearchElement.SelectNodes)
                     {
-                        collection = (ICollection)element;
-                        if (collection != null && collection.Count > 0)
+                        ICollection collection;
+                        try
                         {
-                            return element;
+                            collection = (ICollection)element;
+                            if (collection != null && collection.Count > 0)
+                            {
+                                return element;
+                            }
+                        }
+                        catch
+                        {
+
                         }
                     }
-                    catch
+                    else
                     {
-
+                        return element;
                     }
                 }
 
-                count++;
+                repeat++;
                 Thread.Sleep(interval);
             }
             return null;
