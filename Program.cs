@@ -48,15 +48,22 @@ namespace LookForSpecialOffers
                             foreach (var item in items)
                             {
                                 string notAvailableText = "nicht vorhanden bzw. angegeben";         // Dieser Text soll abgespeichert werden, wenn ein Preis Feld leer ist.
+
                                 var info = item.SelectSingleNode("./article//div[@class='offer-tile__info-container']");
                                 if (info == null) { continue; }         // das erste item hat keinen Artikel mit der Klasse. Deswegen muss dieser übersprungen werden
 
                                 var articleName = ((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText;
 
                                 var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
-                                if (articlePricePerKg == String.Empty || articlePricePerKg == null)
-                                    articlePricePerKg = notAvailableText;
-                                articlePricePerKg = ExtractPrice(articlePricePerKg);
+                                string description = articlePricePerKg.Split('(')[0].Trim();        //extrahiert die Beschreibung 
+                                var articlePricePerKg1 = (ExtractPrices(articlePricePerKg))[0];
+                                var articlePricePerKg2 = (ExtractPrices(articlePricePerKg))[1];
+
+                                if (articlePricePerKg1 == String.Empty || articlePricePerKg == null)
+                                    articlePricePerKg1 = notAvailableText;
+                                if (articlePricePerKg2 == String.Empty || articlePricePerKg == null)
+                                    articlePricePerKg2 = notAvailableText;
+
 
                                 var priceContainer = item.SelectSingleNode("./article" +
                                     "//div[contains(@class, 'bubble offer-tile')]" +
@@ -66,17 +73,17 @@ namespace LookForSpecialOffers
 
                                 var price = priceContainer.SelectSingleNode("./div//span[@class='value']");
                                 if (price != null)
-                                    oldPrice = price.InnerText;
+                                    oldPrice = price.InnerText.Replace('.',',');
                                 else
                                     oldPrice = notAvailableText;
 
                                 price = priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']");
                                 if (price != null)
-                                    newPrice = (priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']")).InnerText;
+                                    newPrice = (priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']")).InnerText.Replace('*',' ').Replace('.', ',');
                                 else
-                                    oldPrice = notAvailableText;
+                                    newPrice = notAvailableText;
 
-                                products.Add(new Product(articleName, articlePricePerKg, oldPrice, newPrice, offerStartDate));
+                                products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg1, articlePricePerKg2, offerStartDate));
                             }
                         }
                     }
@@ -96,9 +103,14 @@ namespace LookForSpecialOffers
                 driver.Quit();
             }
 
-            static string ExtractPrice(string input)
+            static string[] ExtractPrices(string input)
             {
+                string[] prices = new string[2];
+                if (!input.Contains("("))           // Der Preis (falls vorhanden) ist immer in der Klammer enthalten. Wenn kein Preis vorhanden ist, dann interessiert diese Info nicht und gibt einen leeren String zurück.
+                    return prices;
+
                 // Teilen Sie den Eingabetext am "="-Zeichen
+                
                 string[] parts = input.Split('=');
 
                 // Überprüfen, ob der Eingabetext das erwartete Format hat
@@ -107,19 +119,24 @@ namespace LookForSpecialOffers
                     // Extrahieren Sie den Teil nach dem "="-Zeichen und entfernen Sie unnötige Leerzeichen
                     string valuePart = parts[1].Trim();
 
-                    // Ersetzen Sie den Punkt durch ein Komma
-                    valuePart = valuePart.Replace('.', ',');
+                    if (valuePart.Contains('/'))
+                    {
+                        prices = valuePart.Split('/');
+                        prices[0] = prices[0].Replace('.', ',');
+                        prices[1] = prices[1].Replace('.', ',').Replace(')', ' ');
+                    }
+                    else
+                    {
+                        // Ersetzt den Punkt durch ein Komma und die Klammer wird entfernt
+                        prices[0] = valuePart.Replace('.', ',').Replace(')', ' ');
+                    }
 
-
-                    // Zeigen Sie den Wert an
-                    Console.WriteLine(valuePart);
-
-                    return valuePart;
+                    return prices;
                 }
                 else
                 {
-                    Console.WriteLine("Ungültiges Eingabeformat");
-                    return string.Empty;
+                    Debug.WriteLine("Invalid input format");
+                    return prices;          // in diesen Fall ist prices jeweils leer
                 }
             }
 
@@ -269,17 +286,21 @@ namespace LookForSpecialOffers
     class Product
     {
         public string Name { get; set; }
-        public string PricePerKgOrLiter { get; set;}
+        public string Description { get; set; }
         public string OldPrice { get; set;}
         public string NewPrice { get; set;}
+        public string PricePerKgOrLiter1 { get; set;}
+        public string PricePerKgOrLiter2 { get; set;}
         public string OfferStartDate { get; set;}
 
-        public Product(string name, string pricePerKgOrLiter, string oldPrice, string newPrice, string offerStartDate)
+        public Product(string name, string description, string oldPrice, string newPrice, string pricePerKgOrLiter1, string pricePerKgOrLiter2, string offerStartDate)
         {
             Name = name;
-            PricePerKgOrLiter = pricePerKgOrLiter;
+            Description = description;
             OldPrice = oldPrice;
             NewPrice = newPrice;
+            PricePerKgOrLiter1 = pricePerKgOrLiter1;
+            PricePerKgOrLiter2 = pricePerKgOrLiter2;
             OfferStartDate = offerStartDate;
         }
     }
