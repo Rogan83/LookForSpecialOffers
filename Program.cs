@@ -312,13 +312,11 @@ namespace LookForSpecialOffers
             {
                 ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets.Add("Penny");
 
-
                 var cellHeadline = worksheet.Cells[1, 1];
-                worksheet.Cells["A1:G2"].Merge = true;
-                //worksheet.Cells["A2, G2"].Merge = true;
+                worksheet.Cells["A1:G2"].Merge = true;                  // Bereich verbinden
 
                 cellHeadline.Value = $"Die Angebote vom Penny vom {period}";
-                //Style
+
                 worksheet.Cells["A1"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
                 worksheet.Cells["A1"].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
                 worksheet.Cells["A1"].Style.Font.Size = 14;
@@ -326,7 +324,6 @@ namespace LookForSpecialOffers
                 var style = worksheet.Cells[1, 1, 2, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
                 style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
                 style.Fill.BackgroundColor.SetColor(Color.Red);
-
 
                 worksheet.Cells[3, 1].Value = "Name";
                 worksheet.Cells[3, 2].Value = "Bezeichnung";
@@ -338,21 +335,30 @@ namespace LookForSpecialOffers
 
                 style = worksheet.Cells[3, 1, 3, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
                 style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
-                style.Fill.BackgroundColor.SetColor(Color.LightGray);
+                style.Fill.BackgroundColor.SetColor(Color.Gray);
+
+                int offsetRow = 4;
 
                 for (int i = 0; i < data.Count; i++)
                 {
-                    worksheet.Cells[i + 4, 1].Value = data[i].Name;
-                    worksheet.Cells[i + 4, 2].Value = data[i].Description;
+                    worksheet.Cells[i + offsetRow, 1].Value = data[i].Name;
+                    worksheet.Cells[i + offsetRow, 2].Value = data[i].Description;
                     if (data[i].OldPrice != 0)
-                        worksheet.Cells[i + 4, 3].Value = data[i].OldPrice;
+                        worksheet.Cells[i + offsetRow, 3].Value = data[i].OldPrice;
                     if (data[i].NewPrice != 0)
-                        worksheet.Cells[i + 4, 4].Value = data[i].NewPrice;
+                        worksheet.Cells[i + offsetRow, 4].Value = data[i].NewPrice;
                     if (data[i].PricePerKgOrLiter1 != 0)
-                        worksheet.Cells[i + 4, 5].Value = data[i].PricePerKgOrLiter1;
+                        worksheet.Cells[i + offsetRow, 5].Value = data[i].PricePerKgOrLiter1;
                     if (data[i].PricePerKgOrLiter2 != 0)
-                        worksheet.Cells[i + 4, 6].Value = data[i].PricePerKgOrLiter2;
-                    worksheet.Cells[i + 4, 7].Value = data[i].OfferStartDate;
+                        worksheet.Cells[i + offsetRow, 6].Value = data[i].PricePerKgOrLiter2;
+                    worksheet.Cells[i + offsetRow, 7].Value = data[i].OfferStartDate;
+
+                    if (i % 2 == 1)
+                    {
+                        style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
+                        style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
+                        style.Fill.BackgroundColor.SetColor(Color.LightGray);
+                    }
                 }
 
                 //Spaltenbreite automatisch anpassen
