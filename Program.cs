@@ -1,4 +1,5 @@
 ﻿using HtmlAgilityPack;
+using OfficeOpenXml;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using System;
@@ -6,6 +7,7 @@ using System.Collections;
 using System.Diagnostics;
 using System.Drawing;
 using System.Reflection.Metadata;
+using System.Text.RegularExpressions;
 
 namespace LookForSpecialOffers
 {
@@ -14,7 +16,7 @@ namespace LookForSpecialOffers
         static void Main(string[] args) 
         {
             ChromeOptions options = new ChromeOptions();
-            options.AddArgument("--headless");              //öffnet die seiten im hintergrund
+            //options.AddArgument("--headless");              //öffnet die seiten im hintergrund
             using (IWebDriver driver = new ChromeDriver(options))
             {
                 string pathMainPage = "https://www.penny.de";
@@ -22,7 +24,7 @@ namespace LookForSpecialOffers
                 
                 GoToOffersPage(driver, pathMainPage);      //Scheint jetzt richtig zu gehen
 
-                ScrollToBottom(driver, 100, 10);         // Es könnte sein, dass die Zeit nicht ausreicht. Vllt sollte ich, falls auf ein Element nicht zugegriffen werden kann, diese Methode wiederholen
+                ScrollToBottom(driver, 200, 10);         // Es könnte sein, dass die Zeit nicht ausreicht. Vllt sollte ich, falls auf ein Element nicht zugegriffen werden kann, diese Methode wiederholen
 
                 string searchName = "//div[contains(@class, 'tabs__content-area')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
                 var mainContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
@@ -47,7 +49,7 @@ namespace LookForSpecialOffers
 
                             foreach (var item in items)
                             {
-                                string notAvailableText = "nicht vorhanden bzw. angegeben";         // Dieser Text soll abgespeichert werden, wenn ein Preis Feld leer ist.
+                                //string notAvailableText = "nicht vorhanden bzw. angegeben";         // Dieser Text soll abgespeichert werden, wenn ein Preis Feld leer ist.
 
                                 var info = item.SelectSingleNode("./article//div[@class='offer-tile__info-container']");
                                 if (info == null) { continue; }         // das erste item hat keinen Artikel mit der Klasse. Deswegen muss dieser übersprungen werden
@@ -56,34 +58,50 @@ namespace LookForSpecialOffers
 
                                 var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
                                 string description = articlePricePerKg.Split('(')[0].Trim();        //extrahiert die Beschreibung 
-                                var articlePricePerKg1 = (ExtractPrices(articlePricePerKg))[0];
-                                var articlePricePerKg2 = (ExtractPrices(articlePricePerKg))[1];
+                                string articlePricePerKg1 = string.Empty;
+                                string articlePricePerKg2 = string.Empty;
 
-                                if (articlePricePerKg1 == String.Empty || articlePricePerKg == null)
-                                    articlePricePerKg1 = notAvailableText;
-                                if (articlePricePerKg2 == String.Empty || articlePricePerKg == null)
-                                    articlePricePerKg2 = notAvailableText;
+                                if (articlePricePerKg != null)
+                                {
+                                    //articlePricePerKg1 = float.Parse((ExtractPrices(articlePricePerKg))[0]);
+                                    //var price1 = ExtractPrices(articlePricePerKg)[0];
+                                    articlePricePerKg1 = ExtractPrices(articlePricePerKg)[0];
+                                    //if (price1 != null)
+                                    //    articlePricePerKg2 = float.Parse(price1);
+                                    //var price2 = ExtractPrices(articlePricePerKg)[1];
+                                    articlePricePerKg2 = ExtractPrices(articlePricePerKg)[1];
+                                    //if (price2 != null)
+                                    //    articlePricePerKg2 = float.Parse(price2);
+                                }
+                                //if (articlePricePerKg1 == String.Empty || articlePricePerKg == null)
+                                //    articlePricePerKg1 = notAvailableText;
+                                //if (articlePricePerKg2 == String.Empty || articlePricePerKg == null)
+                                //    articlePricePerKg2 = notAvailableText;
 
 
                                 var priceContainer = item.SelectSingleNode("./article" +
                                     "//div[contains(@class, 'bubble offer-tile')]" +
                                     "//div");
 
-                                string oldPrice = "", newPrice = "";
+                                string oldPriceText = "", newPriceText = "";
+                                float oldPrice = 0, newPrice = 0;
 
                                 var price = priceContainer.SelectSingleNode("./div//span[@class='value']");
                                 if (price != null)
-                                    oldPrice = price.InnerText.Replace('.',',');
-                                else
-                                    oldPrice = notAvailableText;
+                                {
+                                    oldPriceText = price.InnerText.Replace(',', ' ').Replace('–', ' ').Replace('.',',');
+                                    //oldPrice = float.Parse(oldPriceText);
+                                }
 
                                 price = priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']");
                                 if (price != null)
-                                    newPrice = (priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']")).InnerText.Replace('*',' ').Replace('.', ',');
-                                else
-                                    newPrice = notAvailableText;
+                                {
+                                    newPriceText = (priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']")).InnerText.
+                                        Replace(',', ' ').Replace('–', ' ').Replace('*', ' ').Replace('.', ',');
+                                    //newPrice = float.Parse(newPriceText);
+                                }
 
-                                products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg1, articlePricePerKg2, offerStartDate));
+                                products.Add(new Product(articleName, description, oldPriceText, newPriceText, articlePricePerKg1, articlePricePerKg2, offerStartDate));
                             }
                         }
                     }
@@ -95,10 +113,11 @@ namespace LookForSpecialOffers
                         "//div[@class = 'category-menu__header-container']" +
                         "//div//div//div")).Attributes["data-startend"].Value;
 
+
+                    SaveToExcel(products, period);
+
                     int iii = 9; //[@class = '']
                 }
-
-
 
                 driver.Quit();
             }
@@ -214,7 +233,7 @@ namespace LookForSpecialOffers
             }
         }
 
-        private static object FindObject(IWebDriver driver, string name, KindOfSearchElement searchElement, int interval = 500, int maxSearchTimeInSeconds = 10)
+        static object FindObject(IWebDriver driver, string name, KindOfSearchElement searchElement, int interval = 500, int maxSearchTimeInSeconds = 10)
         {
             int maxRepeats = (int)(maxSearchTimeInSeconds / (interval/1000.0f));
 
@@ -280,6 +299,60 @@ namespace LookForSpecialOffers
                 Thread.Sleep(interval);
             }
             return null;
+        }
+
+        static void SaveToExcel(List<Product> data, string period)
+        {
+            if (data == null)
+            {
+                Debug.WriteLine("No Date to save");
+                return;
+            }
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            string excelFilePath = "Angebote.xlsx";
+
+            using (ExcelPackage excelPackage = new ExcelPackage())
+            {
+                ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets.Add("Penny");
+
+                worksheet.Cells[1, 1].Value = $"Die Angebote vom Penny vom {period}";
+
+                worksheet.Cells[3, 1].Value = "Name";
+                worksheet.Cells[3, 2].Value = "Bezeichnung";
+                worksheet.Cells[3, 3].Value = "Vorheriger Preis";
+                worksheet.Cells[3, 4].Value = "Neuer Preis";
+                worksheet.Cells[3, 5].Value = "Preis Pro Kg oder Liter erstes Angebot";
+                worksheet.Cells[3, 6].Value = "Preis Pro Kg oder Liter zweites Angebot";
+                worksheet.Cells[3, 7].Value = "Begin";
+
+                for (int i = 0; i < data.Count; i++)
+                {
+                    worksheet.Cells[i + 4, 1].Value = data[i].Name;
+                    worksheet.Cells[i + 4, 2].Value = data[i].Description;
+                    worksheet.Cells[i + 4, 3].Value = data[i].OldPrice;
+                    worksheet.Cells[i + 4, 4].Value = data[i].NewPrice;
+                    worksheet.Cells[i + 4, 5].Value = data[i].PricePerKgOrLiter1;
+                    worksheet.Cells[i + 4, 6].Value = data[i].PricePerKgOrLiter2;
+                    worksheet.Cells[i + 4, 7].Value = data[i].OfferStartDate;
+                    
+                }
+
+                //Spaltenbreite automatisch anpassen
+                for (int i = 1; i <= 7; i++)
+                {
+                    worksheet.Column(i).AutoFit();
+                }
+
+                FileInfo excelFile = new FileInfo(excelFilePath);
+                try
+                {
+                    excelPackage.SaveAs(excelFile);
+                }
+                catch
+                {
+                    Console.WriteLine("Saving is failed");
+                }
+            }
         }
     }
 
