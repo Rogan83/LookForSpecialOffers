@@ -12,38 +12,80 @@ namespace LookForSpecialOffers
         static void Main(string[] args) 
         {
             ChromeOptions options = new ChromeOptions();
-            options.AddArgument("--headless");              //öffnet die seiten im hintergrund
+            //options.AddArgument("--headless");              //öffnet die seiten im hintergrund
             using (IWebDriver driver = new ChromeDriver(options))
             {
                 string pathMainPage = "https://www.penny.de";
                 driver.Navigate().GoToUrl(pathMainPage);
                 
-                GoToOffersPage(driver, pathMainPage);
+                GoToOffersPage(driver, pathMainPage);      //Scheint jetzt richtig zu gehen
 
-                ScrollToBottom(driver, 30, 10);         // Es könnte sein, dass die Zeit nicht ausreicht. Vllt sollte ich, falls auf ein Element nicht zugegriffen werden kann, diese Methode wiederholen
+                ScrollToBottom(driver, 100, 10);         // Es könnte sein, dass die Zeit nicht ausreicht. Vllt sollte ich, falls auf ein Element nicht zugegriffen werden kann, diese Methode wiederholen
 
 
                 string searchName = "//div[contains(@class, 'tabs__content-area')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
                 var articleMainContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
                 HtmlNode mainContainer1;
+                List<Product> products = new();
+
                 if (articleMainContainer != null )
                 {
-                    var mainSection1 = articleMainContainer.SelectNodes("./section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']")[0];
-                    var articleContainer1 = mainSection1.SelectNodes("./div[@class='js-category-section']")[0];
-                    var articleContainer1Section1 = articleContainer1.SelectNodes("./section")[0];
+                    var mainSections = articleMainContainer.SelectNodes("./section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']");
+                    foreach (var mainSection in mainSections)
+                    {
+                        var articleContainers = mainSection.SelectNodes("./div[@class='js-category-section']");
 
-                    var weekdayHeadline = articleContainer1Section1.Attributes["id"].Value;
+                        foreach(var articleContainer in articleContainers)
+                        {
+                            var articleContainerSections = articleContainer.SelectNodes("./section");
 
-                    var list = articleContainer1Section1.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
+                            foreach (var articleContainerSection in articleContainerSections)
+                            {
+                                var weekdayHeadline = articleContainerSection.Attributes["id"].Value;
 
-                    var article1 = list.SelectNodes("./li")[3];
-                    var count = list.SelectNodes("./li").Count();
+                                var list = articleContainerSection.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
+                                var items = list.SelectNodes("./li");
+
+                                // nicht jeder Artikel hat einen Kg Preis. Da muss man noch anpassungen machen, so dass vllt
+                                // stattdessen der preis von der Klasse "ellipsis bubble__price" genommen wird
+                                foreach (var item in items)
+                                {
+                                    var info = item.SelectSingleNode("./article[@class= 'tile offer-tile']//div[@class='offer-tile__info-container']");
+                                    if (info == null) { continue; }         // das erste item hat kein artikel mit der klasse. Deswegen muss dieser übersprungen werden
+
+                                    var articleName = ((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText;
+
+                                    var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
+                                    articlePricePerKg = ExtractPrice(articlePricePerKg);
+
+                                    products.Add(new Product(articleName, articlePricePerKg));
+                                }
+                            }
+                            
+                        }
+                    }
+
+
+
+
+
+
+                    //var mainSection1 = articleMainContainer.SelectNodes("./section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']")[0];
+                    //var articleContainer1 = mainSection1.SelectNodes("./div[@class='js-category-section']")[0];
+                    //var articleContainer1Section1 = articleContainer1.SelectNodes("./section")[0];
+
+                    //var weekdayHeadline = articleContainer1Section1.Attributes["id"].Value;
+
+                    //var list = articleContainer1Section1.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
+
+                    //var article1 = list.SelectNodes("./li")[3];
+                    //var count = list.SelectNodes("./li").Count();
 
                     //var articleName = ((HtmlNode)article1.SelectSingleNode("./div[@class='offer-tile__info-container']//h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']"));
-                    var info = article1.SelectSingleNode("./article[@class= 'tile offer-tile']//div[@class='offer-tile__info-container']");
-                    var articleName = ((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText;
-                    var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
-                    articlePricePerKg = ExtractPrice(articlePricePerKg);
+                    //var info = article1.SelectSingleNode("./article[@class= 'tile offer-tile']//div[@class='offer-tile__info-container']");
+                    //var articleName = ((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText;
+                    //var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
+                    //articlePricePerKg = ExtractPrice(articlePricePerKg);
 
                     int iii = 9; //[@class= '']
                 }
@@ -120,9 +162,24 @@ namespace LookForSpecialOffers
         static void ScrollToBottom(IWebDriver driver, int delayPerStep = 10, int steps = 10)
         {
             IJavaScriptExecutor js = (IJavaScriptExecutor)driver;
-            long scrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");
+            
+            long oldScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");
+            long newScrollHeight = 0;
+            //Es dauert eine Weile, bis die Scrollheight ermittelt wird. Deswegen wird die schleife so lange wiederholt, bis sind die Scrollheight nicht mehr verändert, was bedeutet, dass diese den entgültigen wert ermittelt haben muss
+            while (true)
+            {
+                Thread.Sleep(100);
+                newScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");     
 
-            long offset = scrollHeight / steps;
+                if (newScrollHeight == oldScrollHeight)
+                    break;
+                else
+                {
+                    oldScrollHeight = newScrollHeight;
+                }
+            }
+
+            long offset = oldScrollHeight / steps;
             long newPos = 0;
 
             for (int i = 0; i < steps; i++)
@@ -211,9 +268,9 @@ namespace LookForSpecialOffers
     class Product
     {
         public string Name { get; set; }
-        public float Price { get; set;}
+        public string Price { get; set;}
 
-        Product(string name, float price)
+        public Product(string name, string price)
         {
             Name = name;
             Price = price;
