@@ -7,13 +7,23 @@ using System;
 using System.Collections;
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
 
+//todo:
+// - Den User eventuell darauf hinweisen, dass die Excel Tabelle geschlossen werden muss, während das Programm läuft, sonst kann sie nicht mit neuen Daten überschrieben werden.
+// - Andere Discounter hinzufügen.
+// - Benachrichtigung per E-Mail implementieren, wenn bestimmte Angebote einen Wert unterschritten haben.
+// - eine grafische Oberfläche mit Einstellmöglichkeiten implementieren (mit .NET Maui). Darüber können die vers. Discounter ausgewählt werden, welche bei der Suche berücksichtigt werden sollen,
+//   nach welchen Produkten gesucht werden sollen, welchen Preis sie haben dürfen usw. 
 namespace LookForSpecialOffers
 {
     class Program
     {
+        //Zum testen. Soll von außen bestimmt werden
+        static public List<ProductOfInterest> interestingProducts = new() 
+        { new ProductOfInterest("Quark", 2.70), new ProductOfInterest("Thunfisch", 5.08), new ProductOfInterest("Tomate", 1.50) };
         static void Main(string[] args) 
         {
             ChromeOptions options = new ChromeOptions();
@@ -43,15 +53,13 @@ namespace LookForSpecialOffers
 
                         foreach (var articleContainerSection in articleContainerSections)
                         {
-                            var weekdayHeadline = articleContainerSection.Attributes["id"].Value;
+                            //var weekdayHeadline = articleContainerSection.Attributes["id"].Value;
 
                             var list = articleContainerSection.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
                             var items = list.SelectNodes("./li");
 
                             foreach (var item in items)
                             {
-                                //string notAvailableText = "nicht vorhanden bzw. angegeben";         // Dieser Text soll abgespeichert werden, wenn ein Preis Feld leer ist.
-
                                 var info = item.SelectSingleNode("./article//div[@class='offer-tile__info-container']");
                                 if (info == null) { continue; }         // das erste item hat keinen Artikel mit der Klasse. Deswegen muss dieser übersprungen werden
 
@@ -66,12 +74,11 @@ namespace LookForSpecialOffers
                                 {
                                     var price1 = ExtractPrices(articlePricePerKg)[0];
                                     if (price1 != null)
-                                        articlePricePerKg1 = Math.Round(double.Parse(price1), 2);
+                                        articlePricePerKg1 = Math.Round(double.Parse(price1, CultureInfo.InvariantCulture), 2);
                                     var price2 = ExtractPrices(articlePricePerKg)[1];
                                     if (price2 != null)
                                     {
-                                        //float.TryParse(price2, out articlePricePerKg1);
-                                        articlePricePerKg2 = Math.Round(double.Parse(price2), 2);
+                                        articlePricePerKg2 = Math.Round(double.Parse(price2, CultureInfo.InvariantCulture), 2);
                                     }
                                 }
 
@@ -85,16 +92,17 @@ namespace LookForSpecialOffers
                                 var price = priceContainer.SelectSingleNode("./div//span[@class='value']");
                                 if (price != null)
                                 {
-                                    oldPriceText = price.InnerText.Replace(',', ' ').Replace('–', ' ').Replace('.',',');
-                                    oldPrice = Math.Round(double.Parse(oldPriceText),2);
+                                    oldPriceText = price.InnerText.Replace('–', ' ');
+                                    oldPrice = double.Parse(oldPriceText, CultureInfo.InvariantCulture);
+                                    oldPrice = Math.Round(oldPrice,2);
                                 }
 
                                 price = priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']");
                                 if (price != null)
                                 {
                                     newPriceText = (priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']")).InnerText.
-                                        Replace(',', ' ').Replace('–', ' ').Replace('*', ' ').Replace('.', ',');
-                                    double.TryParse(newPriceText, out newPrice);
+                                        Replace('–', ' ').Replace('*', ' ');
+                                    double.TryParse(newPriceText, CultureInfo.InvariantCulture, out newPrice);
                                     newPrice = Math.Round(newPrice, 2);
                                 }
 
@@ -138,13 +146,12 @@ namespace LookForSpecialOffers
                     if (valuePart.Contains('/'))
                     {
                         prices = valuePart.Split('/');
-                        prices[0] = prices[0].Replace('.', ',');
-                        prices[1] = prices[1].Replace('.', ',').Replace(')', ' ');
+                        prices[1] = prices[1].Replace(')', ' ');
                     }
                     else
                     {
-                        // Ersetzt den Punkt durch ein Komma und die Klammer wird entfernt
-                        prices[0] = valuePart.Replace('.', ',').Replace(')', ' ');
+                        // Die schließende Klammer wird entfernt
+                        prices[0] = valuePart.Replace(')', ' ');
                     }
 
                     return prices;
@@ -228,6 +235,14 @@ namespace LookForSpecialOffers
                 // Warte eine kurze Zeit, um die Seite zu laden
                 System.Threading.Thread.Sleep(delayPerStep); // Wartezeit in Millisekunden anpassen
             }
+        }
+
+        static bool IsContains(string substring, string item)
+        {
+            substring = substring.Trim().ToLower();
+            item = item.Trim().ToLower();
+
+            return item.Contains(substring);
         }
 
         static object FindObject(IWebDriver driver, string name, KindOfSearchElement searchElement, int interval = 500, int maxSearchTimeInSeconds = 10)
@@ -317,6 +332,7 @@ namespace LookForSpecialOffers
 
                 cellHeadline.Value = $"Die Angebote vom Penny vom {period}";
 
+                // Überschrift formatieren
                 worksheet.Cells["A1"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
                 worksheet.Cells["A1"].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
                 worksheet.Cells["A1"].Style.Font.Size = 14;
@@ -333,7 +349,8 @@ namespace LookForSpecialOffers
                 worksheet.Cells[3, 6].Value = "Preis Pro Kg oder Liter zweites Angebot";
                 worksheet.Cells[3, 7].Value = "Begin";
 
-                style = worksheet.Cells[3, 1, 3, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
+                // Beschriftung formatieren
+                style = worksheet.Cells[3, 1, 3, 7].Style;              // Bereich auswählen, welcher farblich geändert werden soll
                 style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
                 style.Fill.BackgroundColor.SetColor(Color.Gray);
 
@@ -358,6 +375,29 @@ namespace LookForSpecialOffers
                         style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
                         style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
                         style.Fill.BackgroundColor.SetColor(Color.LightGray);
+                    }
+                    
+                    // Überprüfe, ob eines der interessanten Produkten mit dabei ist. Falls ja, dann veränder die Hintergrundfarbe
+                    foreach (var interestingProduct in interestingProducts)
+                    {
+                        string produktFullName = data[i].Name;
+                        double produktpricePerKg1 = data[i].PricePerKgOrLiter1;
+                        double produktpricePerKg2 = data[i].PricePerKgOrLiter2;
+                        if (IsContains(interestingProduct.Name, produktFullName))
+                        {
+                            if (produktpricePerKg1 <= interestingProduct.PricePerKg || (produktpricePerKg2 <= interestingProduct.PricePerKg && produktpricePerKg2 != 0))         // es existieren teilweise 2 kg Preise, je nach Produktausführung.
+                            {
+                                style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
+                                style.Fill.PatternType = ExcelFillStyle.Solid;                              // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
+                                style.Fill.BackgroundColor.SetColor(Color.LightCoral);
+                            }
+                            else
+                            {
+                                style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
+                                style.Fill.PatternType = ExcelFillStyle.Solid;                              // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
+                                style.Fill.BackgroundColor.SetColor(Color.Yellow);
+                            }
+                        }
                     }
                 }
 
@@ -399,6 +439,18 @@ namespace LookForSpecialOffers
             PricePerKgOrLiter1 = pricePerKgOrLiter1;
             PricePerKgOrLiter2 = pricePerKgOrLiter2;
             OfferStartDate = offerStartDate;
+        }
+    }
+
+    class ProductOfInterest
+    {
+        public string Name { get; set; }
+        public double PricePerKg { get; set; }
+
+        public ProductOfInterest(string name, double pricePerKg)
+        {
+            Name = name;
+            PricePerKg = pricePerKg;
         }
     }
 }
