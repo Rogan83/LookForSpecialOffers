@@ -44,24 +44,33 @@ namespace LookForSpecialOffers
                 if (mainContainer != null )     //Der maincontainer enthält alles relevantes
                 {
                     var mainSection = mainContainer.SelectSingleNode("./section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']");
-                    var articleContainers = mainSection.SelectNodes("./div[@class='js-category-section']");
+                    var articleDivContainers = mainSection.SelectNodes("./div[@class='js-category-section']");
 
-                    foreach(var articleContainer in articleContainers)
+                    foreach(var articleDivContainer in articleDivContainers)
                     {
-                        var offerStartDate = articleContainer.Attributes["id"].Value.Replace('-',' ');  //Ab wann gilt dieses Angebot
-                        var articleContainerSections = articleContainer.SelectNodes("./section");
+                        var offerStartDate = articleDivContainer.Attributes["id"].Value.Replace('-',' ');  //Ab wann gilt dieses Angebot
+                        var articleSectionContainers = articleDivContainer.SelectNodes("./section");
 
-                        foreach (var articleContainerSection in articleContainerSections)
+                        foreach (var articleSectionContainer in articleSectionContainers)
                         {
                             //var weekdayHeadline = articleContainerSection.Attributes["id"].Value;
 
-                            var list = articleContainerSection.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
+                            var list = articleSectionContainer.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
                             var items = list.SelectNodes("./li");
 
                             foreach (var item in items)
                             {
+                                var badgeContainer = item.SelectSingleNode("./article//div[@class = 'badge--split t-bg--blue-petrol t-color--white']");
+                                var badge = string.Empty;       // Die Plakette, die zusätzliche Infos angibt
+                                if (badgeContainer != null )
+                                {
+                                    badge = ((HtmlNode)badgeContainer.SelectSingleNode("./span")).InnerHtml;
+                                }
+
                                 var info = item.SelectSingleNode("./article//div[@class='offer-tile__info-container']");
                                 if (info == null) { continue; }         // das erste item hat keinen Artikel mit der Klasse. Deswegen muss dieser übersprungen werden
+
+                                
 
                                 var articleName = ((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText;
 
@@ -106,7 +115,7 @@ namespace LookForSpecialOffers
                                     newPrice = Math.Round(newPrice, 2);
                                 }
 
-                                products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg1, articlePricePerKg2, offerStartDate));
+                                products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg1, articlePricePerKg2, badge, offerStartDate));
                             }
                         }
                     }
@@ -327,8 +336,10 @@ namespace LookForSpecialOffers
             {
                 ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets.Add("Penny");
 
+                int columnCount = 8;                                  // Anzahl der Spalten
+
                 var cellHeadline = worksheet.Cells[1, 1];
-                worksheet.Cells["A1:G2"].Merge = true;                  // Bereich verbinden
+                worksheet.Cells["A1:H2"].Merge = true;                  // Bereich verbinden
 
                 cellHeadline.Value = $"Die Angebote vom Penny vom {period}";
 
@@ -337,7 +348,7 @@ namespace LookForSpecialOffers
                 worksheet.Cells["A1"].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
                 worksheet.Cells["A1"].Style.Font.Size = 14;
                 cellHeadline.Style.Font.Color.SetColor(Color.Wheat);
-                var style = worksheet.Cells[1, 1, 2, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
+                var style = worksheet.Cells[1, 1, 2, columnCount].Style;          // Bereich auswählen, welcher farblich geändert werden soll
                 style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
                 style.Fill.BackgroundColor.SetColor(Color.Red);
 
@@ -345,12 +356,13 @@ namespace LookForSpecialOffers
                 worksheet.Cells[3, 2].Value = "Bezeichnung";
                 worksheet.Cells[3, 3].Value = "Vorheriger Preis";
                 worksheet.Cells[3, 4].Value = "Neuer Preis";
-                worksheet.Cells[3, 5].Value = "Preis Pro Kg oder Liter erstes Angebot";
-                worksheet.Cells[3, 6].Value = "Preis Pro Kg oder Liter zweites Angebot";
-                worksheet.Cells[3, 7].Value = "Begin";
+                worksheet.Cells[3, 5].Value = "Preis Pro Kg oder Liter (erstes Angebot)";
+                worksheet.Cells[3, 6].Value = "Preis Pro Kg oder Liter (zweites Angebot)";
+                worksheet.Cells[3, 7].Value = "Info";
+                worksheet.Cells[3, 8].Value = "Beginn";
 
                 // Beschriftung formatieren
-                style = worksheet.Cells[3, 1, 3, 7].Style;              // Bereich auswählen, welcher farblich geändert werden soll
+                style = worksheet.Cells[3, 1, 3, columnCount].Style;              // Bereich auswählen, welcher farblich geändert werden soll
                 style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
                 style.Fill.BackgroundColor.SetColor(Color.Gray);
 
@@ -361,19 +373,32 @@ namespace LookForSpecialOffers
                     worksheet.Cells[i + offsetRow, 1].Value = data[i].Name;
                     worksheet.Cells[i + offsetRow, 2].Value = data[i].Description;
                     if (data[i].OldPrice != 0)
+                    {
                         worksheet.Cells[i + offsetRow, 3].Value = data[i].OldPrice;
+                        worksheet.Cells[i + offsetRow, 3].Style.Numberformat.Format = "€#,##0.00"; // Währungsformat
+                    }
                     if (data[i].NewPrice != 0)
+                    { 
                         worksheet.Cells[i + offsetRow, 4].Value = data[i].NewPrice;
+                        worksheet.Cells[i + offsetRow, 4].Style.Numberformat.Format = "€#,##0.00"; // Währungsformat
+                    }
                     if (data[i].PricePerKgOrLiter1 != 0)
+                    {
                         worksheet.Cells[i + offsetRow, 5].Value = data[i].PricePerKgOrLiter1;
+                        worksheet.Cells[i + offsetRow, 5].Style.Numberformat.Format = "€#,##0.00"; // Währungsformat
+                    }
                     if (data[i].PricePerKgOrLiter2 != 0)
+                    {
                         worksheet.Cells[i + offsetRow, 6].Value = data[i].PricePerKgOrLiter2;
-                    worksheet.Cells[i + offsetRow, 7].Value = data[i].OfferStartDate;
+                        worksheet.Cells[i + offsetRow, 6].Style.Numberformat.Format = "€#,##0.00"; // Währungsformat
+                    }
+                    worksheet.Cells[i + offsetRow, 7].Value = data[i].Badge;
+                    worksheet.Cells[i + offsetRow, 8].Value = data[i].OfferStartDate;
 
                     if (i % 2 == 1)
                     {
-                        style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
-                        style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
+                        style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, columnCount].Style;            // Bereich auswählen, welcher farblich geändert werden soll
+                        style.Fill.PatternType = ExcelFillStyle.Solid;                                          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
                         style.Fill.BackgroundColor.SetColor(Color.LightGray);
                     }
                     
@@ -387,14 +412,14 @@ namespace LookForSpecialOffers
                         {
                             if (produktpricePerKg1 <= interestingProduct.PricePerKg || (produktpricePerKg2 <= interestingProduct.PricePerKg && produktpricePerKg2 != 0))         // es existieren teilweise 2 kg Preise, je nach Produktausführung.
                             {
-                                style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
-                                style.Fill.PatternType = ExcelFillStyle.Solid;                              // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
+                                style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, columnCount].Style;            // Bereich auswählen, welcher farblich geändert werden soll
+                                style.Fill.PatternType = ExcelFillStyle.Solid;                                          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
                                 style.Fill.BackgroundColor.SetColor(Color.LightCoral);
                             }
                             else
                             {
-                                style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
-                                style.Fill.PatternType = ExcelFillStyle.Solid;                              // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
+                                style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, columnCount].Style;            // Bereich auswählen, welcher farblich geändert werden soll
+                                style.Fill.PatternType = ExcelFillStyle.Solid;                                          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
                                 style.Fill.BackgroundColor.SetColor(Color.Yellow);
                             }
                         }
@@ -402,7 +427,7 @@ namespace LookForSpecialOffers
                 }
 
                 //Spaltenbreite automatisch anpassen
-                for (int i = 1; i <= 7; i++)
+                for (int i = 1; i <= columnCount; i++)
                 {
                     worksheet.Column(i).AutoFit();
                 }
@@ -428,9 +453,10 @@ namespace LookForSpecialOffers
         public double NewPrice { get; set;}
         public double PricePerKgOrLiter1 { get; set;}
         public double PricePerKgOrLiter2 { get; set;}
+        public string Badge { get; set;}
         public string OfferStartDate { get; set;}
 
-        public Product(string name, string description, double oldPrice, double newPrice, double pricePerKgOrLiter1, double pricePerKgOrLiter2, string offerStartDate)
+        public Product(string name, string description, double oldPrice, double newPrice, double pricePerKgOrLiter1, double pricePerKgOrLiter2, string badge, string offerStartDate)
         {
             Name = name;
             Description = description;
@@ -438,6 +464,7 @@ namespace LookForSpecialOffers
             NewPrice = newPrice;
             PricePerKgOrLiter1 = pricePerKgOrLiter1;
             PricePerKgOrLiter2 = pricePerKgOrLiter2;
+            Badge = badge;
             OfferStartDate = offerStartDate;
         }
     }
