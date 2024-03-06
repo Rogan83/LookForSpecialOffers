@@ -1,5 +1,6 @@
 ﻿using HtmlAgilityPack;
 using OfficeOpenXml;
+using OfficeOpenXml.Style;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using System;
@@ -311,7 +312,21 @@ namespace LookForSpecialOffers
             {
                 ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets.Add("Penny");
 
-                worksheet.Cells[1, 1].Value = $"Die Angebote vom Penny vom {period}";
+
+                var cellHeadline = worksheet.Cells[1, 1];
+                worksheet.Cells["A1:G2"].Merge = true;
+                //worksheet.Cells["A2, G2"].Merge = true;
+
+                cellHeadline.Value = $"Die Angebote vom Penny vom {period}";
+                //Style
+                worksheet.Cells["A1"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                worksheet.Cells["A1"].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+                worksheet.Cells["A1"].Style.Font.Size = 14;
+                cellHeadline.Style.Font.Color.SetColor(Color.Wheat);
+                var style = worksheet.Cells[1, 1, 2, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
+                style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
+                style.Fill.BackgroundColor.SetColor(Color.Red);
+
 
                 worksheet.Cells[3, 1].Value = "Name";
                 worksheet.Cells[3, 2].Value = "Bezeichnung";
@@ -320,6 +335,10 @@ namespace LookForSpecialOffers
                 worksheet.Cells[3, 5].Value = "Preis Pro Kg oder Liter erstes Angebot";
                 worksheet.Cells[3, 6].Value = "Preis Pro Kg oder Liter zweites Angebot";
                 worksheet.Cells[3, 7].Value = "Begin";
+
+                style = worksheet.Cells[3, 1, 3, 7].Style;          // Bereich auswählen, welcher farblich geändert werden soll
+                style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
+                style.Fill.BackgroundColor.SetColor(Color.LightGray);
 
                 for (int i = 0; i < data.Count; i++)
                 {
