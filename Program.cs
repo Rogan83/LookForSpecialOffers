@@ -11,7 +11,9 @@ namespace LookForSpecialOffers
     {
         static void Main(string[] args) 
         {
-            using (IWebDriver driver = new ChromeDriver())
+            ChromeOptions options = new ChromeOptions();
+            options.AddArgument("--headless");              //öffnet die seiten im hintergrund
+            using (IWebDriver driver = new ChromeDriver(options))
             {
                 string pathMainPage = "https://www.penny.de";
                 driver.Navigate().GoToUrl(pathMainPage);
@@ -21,28 +23,21 @@ namespace LookForSpecialOffers
                 ScrollToBottom(driver, 30, 10);         // Es könnte sein, dass die Zeit nicht ausreicht. Vllt sollte ich, falls auf ein Element nicht zugegriffen werden kann, diese Methode wiederholen
 
 
-
-
                 string searchName = "//div[contains(@class, 'tabs__content-area')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
-                var articleContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
+                var articleMainContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
                 HtmlNode mainContainer1;
-                if (articleContainer != null )
+                if (articleMainContainer != null )
                 {
-                    string xpathExpression = ".//section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']";
-                    string fromMonday = String.Concat(xpathExpression, "//div[@id='ab-montag']");
-                    string divs = String.Concat(xpathExpression, "//div[@class='js-category-section']");
+                    var mainSection1 = articleMainContainer.SelectNodes("./section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']")[0];
+                    var articleContainer1 = mainSection1.SelectNodes("./div[@class='js-category-section']")[0];
+                    var articleContainer1Section1 = articleContainer1.SelectNodes("./section")[0];
 
-                    //xpathExpression = ".//section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']";
-                    //xpathExpression = ".//section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']//div[id=";
+                    var weekdayHeadline = articleContainer1Section1.Attributes["id"].Value;
 
-                    mainContainer1 = articleContainer.SelectNodes(divs)[0];
+                    var list = articleContainer1Section1.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
 
-                    var subContainer1 = mainContainer1.SelectNodes("./section")[0];
-                    var headline = subContainer1.Attributes["id"].Value;
-
-                    var list = subContainer1.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
-
-                    var article1 = list.SelectNodes("./li")[2];
+                    var article1 = list.SelectNodes("./li")[3];
+                    var count = list.SelectNodes("./li").Count();
 
                     //var articleName = ((HtmlNode)article1.SelectSingleNode("./div[@class='offer-tile__info-container']//h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']"));
                     var info = article1.SelectSingleNode("./article[@class= 'tile offer-tile']//div[@class='offer-tile__info-container']");
@@ -84,8 +79,6 @@ namespace LookForSpecialOffers
                     return string.Empty;
                 }
             }
-
-
 
             static void GoToOffersPage(IWebDriver driver, string pathMainPage)
             {
@@ -145,10 +138,6 @@ namespace LookForSpecialOffers
                 System.Threading.Thread.Sleep(delayPerStep); // Wartezeit in Millisekunden anpassen
             }
         }
-
-
-
-
 
         private static object FindObject(IWebDriver driver, string name, KindOfSearchElement searchElement, int interval = 500, int maxSearchTimeInSeconds = 10)
         {
@@ -216,6 +205,18 @@ namespace LookForSpecialOffers
                 Thread.Sleep(interval);
             }
             return null;
+        }
+    }
+
+    class Product
+    {
+        public string Name { get; set; }
+        public float Price { get; set;}
+
+        Product(string name, float price)
+        {
+            Name = name;
+            Price = price;
         }
     }
 }
