@@ -58,39 +58,34 @@ namespace LookForSpecialOffers
 
                                 var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
                                 string description = articlePricePerKg.Split('(')[0].Trim();        //extrahiert die Beschreibung 
-                                string articlePricePerKg1 = string.Empty;
-                                string articlePricePerKg2 = string.Empty;
+                                double articlePricePerKg1 = 0;
+                                double articlePricePerKg2 = 0;
 
                                 if (articlePricePerKg != null)
                                 {
-                                    //articlePricePerKg1 = float.Parse((ExtractPrices(articlePricePerKg))[0]);
-                                    //var price1 = ExtractPrices(articlePricePerKg)[0];
-                                    articlePricePerKg1 = ExtractPrices(articlePricePerKg)[0];
-                                    //if (price1 != null)
-                                    //    articlePricePerKg2 = float.Parse(price1);
-                                    //var price2 = ExtractPrices(articlePricePerKg)[1];
-                                    articlePricePerKg2 = ExtractPrices(articlePricePerKg)[1];
-                                    //if (price2 != null)
-                                    //    articlePricePerKg2 = float.Parse(price2);
+                                    var price1 = ExtractPrices(articlePricePerKg)[0];
+                                    if (price1 != null)
+                                        articlePricePerKg1 = Math.Round(double.Parse(price1), 2);
+                                    var price2 = ExtractPrices(articlePricePerKg)[1];
+                                    if (price2 != null)
+                                    {
+                                        //float.TryParse(price2, out articlePricePerKg1);
+                                        articlePricePerKg2 = Math.Round(double.Parse(price2), 2);
+                                    }
                                 }
-                                //if (articlePricePerKg1 == String.Empty || articlePricePerKg == null)
-                                //    articlePricePerKg1 = notAvailableText;
-                                //if (articlePricePerKg2 == String.Empty || articlePricePerKg == null)
-                                //    articlePricePerKg2 = notAvailableText;
-
 
                                 var priceContainer = item.SelectSingleNode("./article" +
                                     "//div[contains(@class, 'bubble offer-tile')]" +
                                     "//div");
 
                                 string oldPriceText = "", newPriceText = "";
-                                float oldPrice = 0, newPrice = 0;
+                                double oldPrice = 0, newPrice = 0;
 
                                 var price = priceContainer.SelectSingleNode("./div//span[@class='value']");
                                 if (price != null)
                                 {
                                     oldPriceText = price.InnerText.Replace(',', ' ').Replace('–', ' ').Replace('.',',');
-                                    //oldPrice = float.Parse(oldPriceText);
+                                    oldPrice = Math.Round(double.Parse(oldPriceText),2);
                                 }
 
                                 price = priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']");
@@ -98,10 +93,11 @@ namespace LookForSpecialOffers
                                 {
                                     newPriceText = (priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']")).InnerText.
                                         Replace(',', ' ').Replace('–', ' ').Replace('*', ' ').Replace('.', ',');
-                                    //newPrice = float.Parse(newPriceText);
+                                    double.TryParse(newPriceText, out newPrice);
+                                    newPrice = Math.Round(newPrice, 2);
                                 }
 
-                                products.Add(new Product(articleName, description, oldPriceText, newPriceText, articlePricePerKg1, articlePricePerKg2, offerStartDate));
+                                products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg1, articlePricePerKg2, offerStartDate));
                             }
                         }
                     }
@@ -329,12 +325,15 @@ namespace LookForSpecialOffers
                 {
                     worksheet.Cells[i + 4, 1].Value = data[i].Name;
                     worksheet.Cells[i + 4, 2].Value = data[i].Description;
-                    worksheet.Cells[i + 4, 3].Value = data[i].OldPrice;
-                    worksheet.Cells[i + 4, 4].Value = data[i].NewPrice;
-                    worksheet.Cells[i + 4, 5].Value = data[i].PricePerKgOrLiter1;
-                    worksheet.Cells[i + 4, 6].Value = data[i].PricePerKgOrLiter2;
+                    if (data[i].OldPrice != 0)
+                        worksheet.Cells[i + 4, 3].Value = data[i].OldPrice;
+                    if (data[i].NewPrice != 0)
+                        worksheet.Cells[i + 4, 4].Value = data[i].NewPrice;
+                    if (data[i].PricePerKgOrLiter1 != 0)
+                        worksheet.Cells[i + 4, 5].Value = data[i].PricePerKgOrLiter1;
+                    if (data[i].PricePerKgOrLiter2 != 0)
+                        worksheet.Cells[i + 4, 6].Value = data[i].PricePerKgOrLiter2;
                     worksheet.Cells[i + 4, 7].Value = data[i].OfferStartDate;
-                    
                 }
 
                 //Spaltenbreite automatisch anpassen
@@ -360,13 +359,13 @@ namespace LookForSpecialOffers
     {
         public string Name { get; set; }
         public string Description { get; set; }
-        public string OldPrice { get; set;}
-        public string NewPrice { get; set;}
-        public string PricePerKgOrLiter1 { get; set;}
-        public string PricePerKgOrLiter2 { get; set;}
+        public double OldPrice { get; set;}
+        public double NewPrice { get; set;}
+        public double PricePerKgOrLiter1 { get; set;}
+        public double PricePerKgOrLiter2 { get; set;}
         public string OfferStartDate { get; set;}
 
-        public Product(string name, string description, string oldPrice, string newPrice, string pricePerKgOrLiter1, string pricePerKgOrLiter2, string offerStartDate)
+        public Product(string name, string description, double oldPrice, double newPrice, double pricePerKgOrLiter1, double pricePerKgOrLiter2, string offerStartDate)
         {
             Name = name;
             Description = description;
