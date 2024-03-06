@@ -1,8 +1,10 @@
 ﻿using HtmlAgilityPack;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
+using System;
 using System.Collections;
 using System.Diagnostics;
+using System.Drawing;
 using System.Reflection.Metadata;
 
 namespace LookForSpecialOffers
@@ -12,7 +14,7 @@ namespace LookForSpecialOffers
         static void Main(string[] args) 
         {
             ChromeOptions options = new ChromeOptions();
-            //options.AddArgument("--headless");              //öffnet die seiten im hintergrund
+            options.AddArgument("--headless");              //öffnet die seiten im hintergrund
             using (IWebDriver driver = new ChromeDriver(options))
             {
                 string pathMainPage = "https://www.penny.de";
@@ -22,72 +24,71 @@ namespace LookForSpecialOffers
 
                 ScrollToBottom(driver, 100, 10);         // Es könnte sein, dass die Zeit nicht ausreicht. Vllt sollte ich, falls auf ein Element nicht zugegriffen werden kann, diese Methode wiederholen
 
-
                 string searchName = "//div[contains(@class, 'tabs__content-area')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
-                var articleMainContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
-                HtmlNode mainContainer1;
+                var mainContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
                 List<Product> products = new();
 
-                if (articleMainContainer != null )
+                if (mainContainer != null )     //Der maincontainer enthält alles relevantes
                 {
-                    var mainSections = articleMainContainer.SelectNodes("./section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']");
-                    foreach (var mainSection in mainSections)
+                    var mainSection = mainContainer.SelectSingleNode("./section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']");
+                    var articleContainers = mainSection.SelectNodes("./div[@class='js-category-section']");
+
+                    foreach(var articleContainer in articleContainers)
                     {
-                        var articleContainers = mainSection.SelectNodes("./div[@class='js-category-section']");
+                        var offerStartDate = articleContainer.Attributes["id"].Value.Replace('-',' ');  //Ab wann gilt dieses Angebot
+                        var articleContainerSections = articleContainer.SelectNodes("./section");
 
-                        foreach(var articleContainer in articleContainers)
+                        foreach (var articleContainerSection in articleContainerSections)
                         {
-                            var articleContainerSections = articleContainer.SelectNodes("./section");
+                            var weekdayHeadline = articleContainerSection.Attributes["id"].Value;
 
-                            foreach (var articleContainerSection in articleContainerSections)
+                            var list = articleContainerSection.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
+                            var items = list.SelectNodes("./li");
+
+                            foreach (var item in items)
                             {
-                                var weekdayHeadline = articleContainerSection.Attributes["id"].Value;
+                                string notAvailableText = "nicht vorhanden bzw. angegeben";         // Dieser Text soll abgespeichert werden, wenn ein Preis Feld leer ist.
+                                var info = item.SelectSingleNode("./article//div[@class='offer-tile__info-container']");
+                                if (info == null) { continue; }         // das erste item hat keinen Artikel mit der Klasse. Deswegen muss dieser übersprungen werden
 
-                                var list = articleContainerSection.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
-                                var items = list.SelectNodes("./li");
+                                var articleName = ((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText;
 
-                                // nicht jeder Artikel hat einen Kg Preis. Da muss man noch anpassungen machen, so dass vllt
-                                // stattdessen der preis von der Klasse "ellipsis bubble__price" genommen wird
-                                foreach (var item in items)
-                                {
-                                    var info = item.SelectSingleNode("./article[@class= 'tile offer-tile']//div[@class='offer-tile__info-container']");
-                                    if (info == null) { continue; }         // das erste item hat kein artikel mit der klasse. Deswegen muss dieser übersprungen werden
+                                var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
+                                if (articlePricePerKg == String.Empty || articlePricePerKg == null)
+                                    articlePricePerKg = notAvailableText;
+                                articlePricePerKg = ExtractPrice(articlePricePerKg);
 
-                                    var articleName = ((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText;
+                                var priceContainer = item.SelectSingleNode("./article" +
+                                    "//div[contains(@class, 'bubble offer-tile')]" +
+                                    "//div");
 
-                                    var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
-                                    articlePricePerKg = ExtractPrice(articlePricePerKg);
+                                string oldPrice = "", newPrice = "";
 
-                                    products.Add(new Product(articleName, articlePricePerKg));
-                                }
+                                var price = priceContainer.SelectSingleNode("./div//span[@class='value']");
+                                if (price != null)
+                                    oldPrice = price.InnerText;
+                                else
+                                    oldPrice = notAvailableText;
+
+                                price = priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']");
+                                if (price != null)
+                                    newPrice = (priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']")).InnerText;
+                                else
+                                    oldPrice = notAvailableText;
+
+                                products.Add(new Product(articleName, articlePricePerKg, oldPrice, newPrice, offerStartDate));
                             }
-                            
                         }
                     }
 
+                    // Der Zeitraum, von wann bis wann die Angebote gelten
+                    var period = ((HtmlNode)mainSection.SelectSingleNode("./div[@class = 'category-menu']" +
+                        "//div[@class = 'category-menu__header-wrapper']" +
+                        "//div[@class = 'category-menu__header l-container']" +
+                        "//div[@class = 'category-menu__header-container']" +
+                        "//div//div//div")).Attributes["data-startend"].Value;
 
-
-
-
-
-                    //var mainSection1 = articleMainContainer.SelectNodes("./section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']")[0];
-                    //var articleContainer1 = mainSection1.SelectNodes("./div[@class='js-category-section']")[0];
-                    //var articleContainer1Section1 = articleContainer1.SelectNodes("./section")[0];
-
-                    //var weekdayHeadline = articleContainer1Section1.Attributes["id"].Value;
-
-                    //var list = articleContainer1Section1.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
-
-                    //var article1 = list.SelectNodes("./li")[3];
-                    //var count = list.SelectNodes("./li").Count();
-
-                    //var articleName = ((HtmlNode)article1.SelectSingleNode("./div[@class='offer-tile__info-container']//h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']"));
-                    //var info = article1.SelectSingleNode("./article[@class= 'tile offer-tile']//div[@class='offer-tile__info-container']");
-                    //var articleName = ((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText;
-                    //var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
-                    //articlePricePerKg = ExtractPrice(articlePricePerKg);
-
-                    int iii = 9; //[@class= '']
+                    int iii = 9; //[@class = '']
                 }
 
 
@@ -268,12 +269,18 @@ namespace LookForSpecialOffers
     class Product
     {
         public string Name { get; set; }
-        public string Price { get; set;}
+        public string PricePerKgOrLiter { get; set;}
+        public string OldPrice { get; set;}
+        public string NewPrice { get; set;}
+        public string OfferStartDate { get; set;}
 
-        public Product(string name, string price)
+        public Product(string name, string pricePerKgOrLiter, string oldPrice, string newPrice, string offerStartDate)
         {
             Name = name;
-            Price = price;
+            PricePerKgOrLiter = pricePerKgOrLiter;
+            OldPrice = oldPrice;
+            NewPrice = newPrice;
+            OfferStartDate = offerStartDate;
         }
     }
 }
