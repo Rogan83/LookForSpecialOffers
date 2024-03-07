@@ -8,6 +8,8 @@ using System.Collections;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
+using System.Net;
+using System.Net.Mail;
 using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
 
@@ -22,33 +24,55 @@ namespace LookForSpecialOffers
     class Program
     {
         //Zum testen. Soll von außen bestimmt werden
-        static public List<ProductOfInterest> interestingProducts = new() 
-        { new ProductOfInterest("Quark", 2.70), new ProductOfInterest("Thunfisch", 5.08), new ProductOfInterest("Tomate", 1.50) };
+        static public List<ProduktFavorite> interestingProducts = new() 
+        { 
+            new ProduktFavorite("Quark", 2.60), 
+            new ProduktFavorite("Thunfisch", 5.08), 
+            new ProduktFavorite("Tomate", 1.50) 
+        };
+
+        static string ExcelPath { get; set; } = "Angebote.xlsx";
+
+        static string EMail { get; set; } = "d.rothweiler@yahoo.de";
+
         static void Main(string[] args) 
         {
             ChromeOptions options = new ChromeOptions();
-            //options.AddArgument("--headless");              //öffnet die seiten im hintergrund
+            options.AddArgument("--headless");              //öffnet die seiten im hintergrund
             using (IWebDriver driver = new ChromeDriver(options))
             {
+
+                string periodheadline = ExtractHeadlineFromExcel(ExcelPath);
+                ExtractOffersFromPenny(driver, periodheadline);
+
+                //SendEMail("d.rothweiler@yahoo.de");
+                driver.Quit();
+            }
+
+            // Extrahiert alle Sonderangebote vom Penny und speichert diese formatiert in eine Excel Tabelle ab.
+            static void ExtractOffersFromPenny(IWebDriver driver, string oldPeriodHeadline)
+            {
                 string pathMainPage = "https://www.penny.de";
+                bool isNewOffersAvailable = false;                  // Sind neue Angebote vom Penny vorhanden? Falls ja, dann soll eine E-Mail verschickt werden
+
                 driver.Navigate().GoToUrl(pathMainPage);
-                
+
                 GoToOffersPage(driver, pathMainPage);      //Scheint jetzt richtig zu gehen
 
-                ScrollToBottom(driver, 200, 10);         // Es könnte sein, dass die Zeit nicht ausreicht. Vllt sollte ich, falls auf ein Element nicht zugegriffen werden kann, diese Methode wiederholen
+                ScrollToBottom(driver, 10, 50);         // Es scheint so, dass es wichtig ist, dass man das herunterscrollen in vielen Steps einteilen wichtig ist
 
                 string searchName = "//div[contains(@class, 'tabs__content-area')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
-                var mainContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
+                var mainContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 200, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
                 List<Product> products = new();
 
-                if (mainContainer != null )     //Der maincontainer enthält alles relevantes
+                if (mainContainer != null)     //Der maincontainer enthält alles relevantes
                 {
                     var mainSection = mainContainer.SelectSingleNode("./section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']");
                     var articleDivContainers = mainSection.SelectNodes("./div[@class='js-category-section']");
 
-                    foreach(var articleDivContainer in articleDivContainers)
+                    foreach (var articleDivContainer in articleDivContainers)
                     {
-                        var offerStartDate = articleDivContainer.Attributes["id"].Value.Replace('-',' ');  //Ab wann gilt dieses Angebot
+                        var offerStartDate = articleDivContainer.Attributes["id"].Value.Replace('-', ' ');  //Ab wann gilt dieses Angebot
                         var articleSectionContainers = articleDivContainer.SelectNodes("./section");
 
                         foreach (var articleSectionContainer in articleSectionContainers)
@@ -62,7 +86,7 @@ namespace LookForSpecialOffers
                             {
                                 var badgeContainer = item.SelectSingleNode("./article//div[@class = 'badge--split t-bg--blue-petrol t-color--white']");
                                 var badge = string.Empty;       // Die Plakette, die zusätzliche Infos angibt
-                                if (badgeContainer != null )
+                                if (badgeContainer != null)
                                 {
                                     badge = ((HtmlNode)badgeContainer.SelectSingleNode("./span")).InnerHtml;
                                 }
@@ -70,9 +94,7 @@ namespace LookForSpecialOffers
                                 var info = item.SelectSingleNode("./article//div[@class='offer-tile__info-container']");
                                 if (info == null) { continue; }         // das erste item hat keinen Artikel mit der Klasse. Deswegen muss dieser übersprungen werden
 
-                                
-
-                                var articleName = ((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText;
+                                var articleName = WebUtility.HtmlDecode(((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText);
 
                                 var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
                                 string description = articlePricePerKg.Split('(')[0].Trim();        //extrahiert die Beschreibung 
@@ -103,7 +125,7 @@ namespace LookForSpecialOffers
                                 {
                                     oldPriceText = price.InnerText.Replace('–', ' ');
                                     oldPrice = double.Parse(oldPriceText, CultureInfo.InvariantCulture);
-                                    oldPrice = Math.Round(oldPrice,2);
+                                    oldPrice = Math.Round(oldPrice, 2);
                                 }
 
                                 price = priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']");
@@ -111,7 +133,8 @@ namespace LookForSpecialOffers
                                 {
                                     newPriceText = (priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']")).InnerText.
                                         Replace('–', ' ').Replace('*', ' ');
-                                    double.TryParse(newPriceText, CultureInfo.InvariantCulture, out newPrice);
+                                    if (!double.TryParse(newPriceText, CultureInfo.InvariantCulture, out newPrice))
+                                        Debug.WriteLine($"folgende Zeichenkette konnte nicht umgewandelt werden: {newPriceText}");
                                     newPrice = Math.Round(newPrice, 2);
                                 }
 
@@ -127,89 +150,140 @@ namespace LookForSpecialOffers
                         "//div[@class = 'category-menu__header-container']" +
                         "//div//div//div")).Attributes["data-startend"].Value;
 
+                    // Wenn keine Datei vorhanden ist, dann kann auch nicht verglichen werden, ob das Datum von den Angeboten,
+                    // die in der Excel Tabelle stehen und das Datum von den aktuellen Angeboten übereinstimmen. In diesen Fall
+                    // muss davon ausgegangen werden, dass noch nicht über die neuen Angebote informiert wurde.
+                    if (oldPeriodHeadline == string.Empty || !oldPeriodHeadline.Contains(period))
+                    {
+                        isNewOffersAvailable = true;
+                    }
 
-                    SaveToExcel(products, period);
+                    InFormPerEMail(isNewOffersAvailable, products);
 
-                    int iii = 9; //[@class = '']
+
+                    //SaveToExcel(products, period, ExcelPath);
                 }
 
-                driver.Quit();
-            }
-
-            static string[] ExtractPrices(string input)
-            {
-                string[] prices = new string[2];
-                if (!input.Contains("("))           // Der Preis (falls vorhanden) ist immer in der Klammer enthalten. Wenn kein Preis vorhanden ist, dann interessiert diese Info nicht und gibt einen leeren String zurück.
-                    return prices;
-
-                // Teilen Sie den Eingabetext am "="-Zeichen
-                
-                string[] parts = input.Split('=');
-
-                // Überprüfen, ob der Eingabetext das erwartete Format hat
-                if (parts.Length == 2)
+                static string[] ExtractPrices(string input)
                 {
-                    // Extrahieren Sie den Teil nach dem "="-Zeichen und entfernen Sie unnötige Leerzeichen
-                    string valuePart = parts[1].Trim();
+                    string[] prices = new string[2];
+                    if (!input.Contains("("))           // Der Preis (falls vorhanden) ist immer in der Klammer enthalten. Wenn kein Preis vorhanden ist, dann interessiert diese Info nicht und gibt einen leeren String zurück.
+                        return prices;
 
-                    if (valuePart.Contains('/'))
+                    // Teilen Sie den Eingabetext am "="-Zeichen
+
+                    string[] parts = input.Split('=');
+
+                    // Überprüfen, ob der Eingabetext das erwartete Format hat
+                    if (parts.Length == 2)
                     {
-                        prices = valuePart.Split('/');
-                        prices[1] = prices[1].Replace(')', ' ');
+                        // Extrahieren Sie den Teil nach dem "="-Zeichen und entfernen Sie unnötige Leerzeichen
+                        string valuePart = parts[1].Trim();
+
+                        if (valuePart.Contains('/'))
+                        {
+                            prices = valuePart.Split('/');
+                            prices[1] = prices[1].Replace(')', ' ');
+                        }
+                        else
+                        {
+                            // Die schließende Klammer wird entfernt
+                            prices[0] = valuePart.Replace(')', ' ');
+                        }
+
+                        return prices;
                     }
                     else
                     {
-                        // Die schließende Klammer wird entfernt
-                        prices[0] = valuePart.Replace(')', ' ');
+                        Debug.WriteLine("ungültiges input format");
+                        return prices;          // in diesen Fall ist prices jeweils leer
                     }
-
-                    return prices;
                 }
-                else
-                {
-                    Debug.WriteLine("Invalid input format");
-                    return prices;          // in diesen Fall ist prices jeweils leer
-                }
-            }
 
-            static void GoToOffersPage(IWebDriver driver, string pathMainPage)
-            {
-                string searchName = "//div[contains(@class, 'site-header__wrapper')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
-                var siteHeaderWrapperNode = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
-                if (siteHeaderWrapperNode != null)
+                static void InFormPerEMail(bool isNewOffersAvailable, List<Product> products)
                 {
-                    // XPath-Ausdruck, um das erste a-Element im ersten li-Element mit der angegebenen Klasse zu finden
-                    string xpathExpression = ".//div[@class='show-for-large']//nav[@class='site-header__nav']//div[@class='main-nav__container']//ul//li[@class='main-nav__item has-submenu'][1]//a[@href]";
-                    xpathExpression = ".//div[@class='site-header__container']//div[@class='show-for-large']//nav[@class='site-header__nav']//div[@class='main-nav__container']//ul//li[@class='main-nav__item has-submenu'][1]//a[@href]";
-                    // Das erste passende Element finden, beginnend von siteHeaderWrapperNode
-                    HtmlNode linkNode = siteHeaderWrapperNode.SelectSingleNode(xpathExpression);
-
-                    // Überprüfen, ob ein Element gefunden wurde, und den Wert des href-Attributs abrufen
-                    if (linkNode != null)
+                    if (isNewOffersAvailable)
                     {
-                        string hrefValue = linkNode.Attributes["href"].Value;
-                        string pathOffers = String.Concat(pathMainPage, hrefValue);
-                        driver.Navigate().GoToUrl(pathOffers);
-                        Debug.WriteLine("Der href-Wert des ersten a-Elements ist: " + hrefValue);
+                        int interestingOfferCount = 0;
+                        string offers = string.Empty;
+                        // Als nächstes soll untersucht werden, ob von den interessanten Angeboten der Preis auch niedrig genug ist.
+                        foreach (var product in products)
+                        {
+                            foreach (var interestingProduct in interestingProducts)
+                            {
+                                if (product.Name.ToLower().Trim().Contains(interestingProduct.Name.ToLower().Trim()))
+                                {
+                                    if ((product.PricePerKgOrLiter1 <= interestingProduct.PricePerKgCap && product.PricePerKgOrLiter1 != 0) ||
+                                        (product.PricePerKgOrLiter2 <= interestingProduct.PricePerKgCap && product.PricePerKgOrLiter2 != 0))
+                                    {
+                                        offers += $" {product.Name} für nur {product.NewPrice} €.\n";
+                                        interestingOfferCount++;
+                                    }
+                                }
+                            }
+                        }
+                        string body = string.Empty;
+                        string subject = string.Empty;
+                        if (interestingOfferCount > 1)
+                        {
+                            subject = "Interessantes Angebote gefunden!";
+                            body = $"Gute Nachricht! Folgende Angebote, welche deine preislichen Vorstellungen entspricht, wurden gefunden: \n\n{offers}";
+                        }
+                        else if (interestingOfferCount == 1)
+                        {
+                            subject = "Es wurde ein interessantes Angebot gefunden!";
+                            body = $"Gute Nachricht! Folgendes Angebot, welches deine preisliche Vorstellung entspricht, wurde gefunden: \n\n{offers}";
+                        }
+
+                        if (interestingOfferCount > 0)
+                        {
+                            body += "\n\nHier ist der Link: https://www.penny.de/angebote \nLass es dir schmecken!";
+                            SendEMail(EMail, subject, body);
+                        }
                     }
-                    else
-                    {
-                        Debug.WriteLine("Das gewünschte Element wurde nicht gefunden.");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("Der Node mit der Klasse 'site-header__wrapper' wurde nicht gefunden.");
                 }
             }
         }
+
+        static void GoToOffersPage(IWebDriver driver, string pathMainPage)
+        {
+            string searchName = "//div[contains(@class, 'site-header__wrapper')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
+            var siteHeaderWrapperNode = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 100, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
+            if (siteHeaderWrapperNode != null)
+            {
+                // XPath-Ausdruck, um das erste a-Element im ersten li-Element mit der angegebenen Klasse zu finden
+                string xpathExpression = ".//div[@class='show-for-large']//nav[@class='site-header__nav']//div[@class='main-nav__container']//ul//li[@class='main-nav__item has-submenu'][1]//a[@href]";
+                xpathExpression = ".//div[@class='site-header__container']//div[@class='show-for-large']//nav[@class='site-header__nav']//div[@class='main-nav__container']//ul//li[@class='main-nav__item has-submenu'][1]//a[@href]";
+                // Das erste passende Element finden, beginnend von siteHeaderWrapperNode
+                HtmlNode linkNode = siteHeaderWrapperNode.SelectSingleNode(xpathExpression);
+
+                // Überprüfen, ob ein Element gefunden wurde, und den Wert des href-Attributs abrufen
+                if (linkNode != null)
+                {
+                    string hrefValue = linkNode.Attributes["href"].Value;
+                    string pathOffers = String.Concat(pathMainPage, hrefValue);
+                    driver.Navigate().GoToUrl(pathOffers);
+                    Debug.WriteLine("Der href-Wert des ersten a-Elements ist: " + hrefValue);
+                }
+                else
+                {
+                    Debug.WriteLine("Das gewünschte Element wurde nicht gefunden.");
+                }
+            }
+            else
+            {
+                Debug.WriteLine("Der Node mit der Klasse 'site-header__wrapper' wurde nicht gefunden.");
+            }
+        }
+
         /// <summary>
         /// Scroll stufenweise nach unten, damit die Seite komplett geladen wird.
         /// </summary>
         /// <param name="driver"></param>
         /// <param name="delayPerStep"></param>
         /// <param name="steps"></param>
-        static void ScrollToBottom(IWebDriver driver, int delayPerStep = 10, int steps = 10)
+
+        static void ScrollToBottom(IWebDriver driver, int delayPerStep = 200, int steps = 10)
         {
             IJavaScriptExecutor js = (IJavaScriptExecutor)driver;
             
@@ -218,7 +292,7 @@ namespace LookForSpecialOffers
             //Es dauert eine Weile, bis die Scrollheight ermittelt wird. Deswegen wird die schleife so lange wiederholt, bis sind die Scrollheight nicht mehr verändert, was bedeutet, dass diese den entgültigen wert ermittelt haben muss
             while (true)
             {
-                Thread.Sleep(100);
+                Thread.Sleep(500);
                 newScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");     
 
                 if (newScrollHeight == oldScrollHeight)
@@ -242,18 +316,31 @@ namespace LookForSpecialOffers
                 
 
                 // Warte eine kurze Zeit, um die Seite zu laden
-                System.Threading.Thread.Sleep(delayPerStep); // Wartezeit in Millisekunden anpassen
+                Thread.Sleep(delayPerStep); // Wartezeit in Millisekunden anpassen
             }
         }
-
-        static bool IsContains(string substring, string item)
+        /// <summary>
+        /// Überprüft, ob der Begriff in dem anderen Begriff vorkommt.
+        /// </summary>
+        /// <param name="substring"></param>
+        /// <param name="product"></param>
+        /// <returns></returns>
+        static bool IsContains(string substring, string product)
         {
             substring = substring.Trim().ToLower();
-            item = item.Trim().ToLower();
+            product = product.Trim().ToLower();
 
-            return item.Contains(substring);
+            return product.Contains(substring);
         }
-
+        /// <summary>
+        /// Versucht, ein bestimmtes Element zu finden und versucht es in gewissen Zeitabständen erneut, falls dieses Element nicht gefunden wird.
+        /// </summary>
+        /// <param name="driver"></param>
+        /// <param name="name"></param>
+        /// <param name="searchElement"></param>
+        /// <param name="interval"></param>
+        /// <param name="maxSearchTimeInSeconds"></param>
+        /// <returns></returns>
         static object FindObject(IWebDriver driver, string name, KindOfSearchElement searchElement, int interval = 500, int maxSearchTimeInSeconds = 10)
         {
             int maxRepeats = (int)(maxSearchTimeInSeconds / (interval/1000.0f));
@@ -322,15 +409,15 @@ namespace LookForSpecialOffers
             return null;
         }
 
-        static void SaveToExcel(List<Product> data, string period)
+        static void SaveToExcel(List<Product> products, string period, string path)
         {
-            if (data == null)
+            if (products == null)
             {
-                Debug.WriteLine("No Date to save");
+                Debug.WriteLine("Keine Daten zum speichern vorhanden.");
                 return;
             }
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-            string excelFilePath = "Angebote.xlsx";
+            string excelFilePath = path;
 
             using (ExcelPackage excelPackage = new ExcelPackage())
             {
@@ -368,32 +455,34 @@ namespace LookForSpecialOffers
 
                 int offsetRow = 4;
 
-                for (int i = 0; i < data.Count; i++)
+                string euroFormat = "#,##0.00 €";           // Währungsformat
+
+                for (int i = 0; i < products.Count; i++)
                 {
-                    worksheet.Cells[i + offsetRow, 1].Value = data[i].Name;
-                    worksheet.Cells[i + offsetRow, 2].Value = data[i].Description;
-                    if (data[i].OldPrice != 0)
+                    worksheet.Cells[i + offsetRow, 1].Value = products[i].Name;
+                    worksheet.Cells[i + offsetRow, 2].Value = products[i].Description;
+                    if (products[i].OldPrice != 0)
                     {
-                        worksheet.Cells[i + offsetRow, 3].Value = data[i].OldPrice;
-                        worksheet.Cells[i + offsetRow, 3].Style.Numberformat.Format = "€#,##0.00"; // Währungsformat
+                        worksheet.Cells[i + offsetRow, 3].Value = products[i].OldPrice;
+                        worksheet.Cells[i + offsetRow, 3].Style.Numberformat.Format = euroFormat; ; 
                     }
-                    if (data[i].NewPrice != 0)
+                    if (products[i].NewPrice != 0)
                     { 
-                        worksheet.Cells[i + offsetRow, 4].Value = data[i].NewPrice;
-                        worksheet.Cells[i + offsetRow, 4].Style.Numberformat.Format = "€#,##0.00"; // Währungsformat
+                        worksheet.Cells[i + offsetRow, 4].Value = products[i].NewPrice;
+                        worksheet.Cells[i + offsetRow, 4].Style.Numberformat.Format = euroFormat; 
                     }
-                    if (data[i].PricePerKgOrLiter1 != 0)
+                    if (products[i].PricePerKgOrLiter1 != 0)
                     {
-                        worksheet.Cells[i + offsetRow, 5].Value = data[i].PricePerKgOrLiter1;
-                        worksheet.Cells[i + offsetRow, 5].Style.Numberformat.Format = "€#,##0.00"; // Währungsformat
+                        worksheet.Cells[i + offsetRow, 5].Value = products[i].PricePerKgOrLiter1;
+                        worksheet.Cells[i + offsetRow, 5].Style.Numberformat.Format = euroFormat; 
                     }
-                    if (data[i].PricePerKgOrLiter2 != 0)
+                    if (products[i].PricePerKgOrLiter2 != 0)
                     {
-                        worksheet.Cells[i + offsetRow, 6].Value = data[i].PricePerKgOrLiter2;
-                        worksheet.Cells[i + offsetRow, 6].Style.Numberformat.Format = "€#,##0.00"; // Währungsformat
+                        worksheet.Cells[i + offsetRow, 6].Value = products[i].PricePerKgOrLiter2;
+                        worksheet.Cells[i + offsetRow, 6].Style.Numberformat.Format = euroFormat; 
                     }
-                    worksheet.Cells[i + offsetRow, 7].Value = data[i].Badge;
-                    worksheet.Cells[i + offsetRow, 8].Value = data[i].OfferStartDate;
+                    worksheet.Cells[i + offsetRow, 7].Value = products[i].Badge;
+                    worksheet.Cells[i + offsetRow, 8].Value = products[i].OfferStartDate;
 
                     if (i % 2 == 1)
                     {
@@ -402,15 +491,15 @@ namespace LookForSpecialOffers
                         style.Fill.BackgroundColor.SetColor(Color.LightGray);
                     }
                     
-                    // Überprüfe, ob eines der interessanten Produkten mit dabei ist. Falls ja, dann veränder die Hintergrundfarbe
+                    // Überprüfe, ob eines der interessanten Produkten mit dabei ist. Falls ja, dann verändere die Hintergrundfarbe
                     foreach (var interestingProduct in interestingProducts)
                     {
-                        string produktFullName = data[i].Name;
-                        double produktpricePerKg1 = data[i].PricePerKgOrLiter1;
-                        double produktpricePerKg2 = data[i].PricePerKgOrLiter2;
+                        string produktFullName = products[i].Name;
+                        double produktpricePerKg1 = products[i].PricePerKgOrLiter1;
+                        double produktpricePerKg2 = products[i].PricePerKgOrLiter2;
                         if (IsContains(interestingProduct.Name, produktFullName))
                         {
-                            if (produktpricePerKg1 <= interestingProduct.PricePerKg || (produktpricePerKg2 <= interestingProduct.PricePerKg && produktpricePerKg2 != 0))         // es existieren teilweise 2 kg Preise, je nach Produktausführung.
+                            if ((produktpricePerKg1 <= interestingProduct.PricePerKgCap && produktpricePerKg1 != 0) || (produktpricePerKg2 <= interestingProduct.PricePerKgCap && produktpricePerKg2 != 0))         // es existieren teilweise 2 kg Preise, je nach Produktausführung.
                             {
                                 style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, columnCount].Style;            // Bereich auswählen, welcher farblich geändert werden soll
                                 style.Fill.PatternType = ExcelFillStyle.Solid;                                          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
@@ -439,12 +528,72 @@ namespace LookForSpecialOffers
                 }
                 catch
                 {
-                    Console.WriteLine("Saving is failed");
+                    Console.WriteLine("Speichern fehlgeschlagen.");
                 }
             }
         }
-    }
+        /// <summary>
+        /// Lade die alte Angebots Datei und extrahiere die Überschrift (enthält von wann bis wann die Angebote gültig sind).
+        /// </summary>
+        /// <param name="excelPath"></param>
+        /// <returns></returns>
+        static string ExtractHeadlineFromExcel(string excelPath)
+        {
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
+            // Excel-Paket erstellen und die Excel-Datei laden
+            using (ExcelPackage excelPackage = new ExcelPackage(new FileInfo(excelPath)))
+            {
+                if (!File.Exists(excelPath))
+                    return string.Empty;
+
+                // Das erste Arbeitsblatt auswählen (Index beginnt bei 0). Es kann aber auch der Name vom Arbeitsblatt angegeben werden
+                ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets["Penny"];
+
+                if (worksheet != null)
+                    return (string)worksheet.Cells["A1"].Value;
+                else
+                    return string.Empty;
+            }
+        }
+
+        static void SendEMail(string mailAdress, string subject, string body)
+        {
+            // E-Mail-Einstellungen
+            string senderEmail = "d.rothweiler83@gmx.de";
+            string receiverEmail = mailAdress;
+            //string receiverEmail = "d.rothweiler83@gmx.de";
+
+            // SMTP-Server-Einstellungen
+            //string smtpServer = "smtp.mail.yahoo.com";
+            string smtpServer = "mail.gmx.net";
+            int smtpPort = 587; // Standard-Port für SMTP ist 587
+            //string smtpUsername = "d.rothweiler@yahoo.de";
+            string smtpUsername = "d.rothweiler83@gmx.de";
+            //string smtpPassword = "41149512-Dominic";
+            string smtpPassword = "41149512dominic";
+
+            // Erstellen Sie eine neue SMTP-Clientinstanz
+            SmtpClient client = new SmtpClient(smtpServer, smtpPort);
+            client.EnableSsl = true; // SSL aktivieren, falls erforderlich
+            client.Credentials = new NetworkCredential(smtpUsername, smtpPassword);
+
+            // Erstellen Sie eine neue E-Mail-Nachricht
+            MailMessage message = new MailMessage(senderEmail, receiverEmail, subject, body);
+
+            try
+            {
+                // Senden Sie die E-Mail
+                client.Send(message);
+                Console.WriteLine("E-Mail-Benachrichtigung erfolgreich gesendet.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Fehler beim Senden der E-Mail-Benachrichtigung: " + ex.Message);
+            }
+        }
+    }
+    
     class Product
     {
         public string Name { get; set; }
@@ -469,15 +618,15 @@ namespace LookForSpecialOffers
         }
     }
 
-    class ProductOfInterest
+    class ProduktFavorite
     {
         public string Name { get; set; }
-        public double PricePerKg { get; set; }
+        public double PricePerKgCap { get; set; }
 
-        public ProductOfInterest(string name, double pricePerKg)
+        public ProduktFavorite(string name, double pricePerKg)
         {
             Name = name;
-            PricePerKg = pricePerKg;
+            PricePerKgCap = pricePerKg;
         }
     }
 }
