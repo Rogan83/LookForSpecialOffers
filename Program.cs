@@ -13,10 +13,13 @@ using System.Net.Mail;
 using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
 
+//Bugs
+// gewisse produkte werden nicht gespeichert. Wie z.b. Die grapefruit vermutlich weil die stückzahl angegeben wird.
+
 //todo:
 // - Den User eventuell darauf hinweisen, dass die Excel Tabelle geschlossen werden muss, während das Programm läuft, sonst kann sie nicht mit neuen Daten überschrieben werden.
 // - Andere Discounter hinzufügen.
-// - Benachrichtigung per E-Mail implementieren, wenn bestimmte Angebote einen Wert unterschritten haben.
+// - Benachrichtigung per E-Mail implementieren, wenn bestimmte Angebote einen Wert unterschritten haben.   (erledigt)
 // - eine grafische Oberfläche mit Einstellmöglichkeiten implementieren (mit .NET Maui). Darüber können die vers. Discounter ausgewählt werden, welche bei der Suche berücksichtigt werden sollen,
 //   nach welchen Produkten gesucht werden sollen, welchen Preis sie haben dürfen usw. 
 namespace LookForSpecialOffers
@@ -28,7 +31,8 @@ namespace LookForSpecialOffers
         { 
             new ProduktFavorite("Quark", 2.60), 
             new ProduktFavorite("Thunfisch", 5.08), 
-            new ProduktFavorite("Tomate", 1.50) 
+            new ProduktFavorite("Tomate", 1.50),
+            new ProduktFavorite("Banane", 1.01)
         };
 
         static string ExcelPath { get; set; } = "Angebote.xlsx";
@@ -161,7 +165,7 @@ namespace LookForSpecialOffers
                     InFormPerEMail(isNewOffersAvailable, products);
 
 
-                    //SaveToExcel(products, period, ExcelPath);
+                    SaveToExcel(products, period, ExcelPath);
                 }
 
                 static string[] ExtractPrices(string input)
@@ -200,6 +204,7 @@ namespace LookForSpecialOffers
                     }
                 }
 
+                // Informiert jedesmal, wenn neue Angebote verfügbar sind, per E-Mail, wenn diese einen bestimmten festgelegten Preis unterstreiten.
                 static void InFormPerEMail(bool isNewOffersAvailable, List<Product> products)
                 {
                     if (isNewOffersAvailable)
@@ -213,8 +218,17 @@ namespace LookForSpecialOffers
                             {
                                 if (product.Name.ToLower().Trim().Contains(interestingProduct.Name.ToLower().Trim()))
                                 {
-                                    if ((product.PricePerKgOrLiter1 <= interestingProduct.PricePerKgCap && product.PricePerKgOrLiter1 != 0) ||
-                                        (product.PricePerKgOrLiter2 <= interestingProduct.PricePerKgCap && product.PricePerKgOrLiter2 != 0))
+                                    // falls bei beiden Kg bzw. Liter Preise nichts drin steht, dann könnte das bedeuten, dass entweder die Menge schon ein Kilo entspricht oder dass es einzel Preise sind
+                                    if (product.PricePerKgOrLiter1 == 0 && product.PricePerKgOrLiter2 == 0) 
+                                    {
+                                        if (product.NewPrice <= interestingProduct.PriceCap)
+                                        {
+                                            offers += $" {product.Name} für nur {product.NewPrice} €.\n";
+                                            interestingOfferCount++;
+                                        }
+                                    }
+                                    else if ((product.PricePerKgOrLiter1 <= interestingProduct.PriceCap && product.PricePerKgOrLiter1 != 0) ||
+                                        (product.PricePerKgOrLiter2 <= interestingProduct.PriceCap && product.PricePerKgOrLiter2 != 0))
                                     {
                                         offers += $" {product.Name} für nur {product.NewPrice} €.\n";
                                         interestingOfferCount++;
@@ -237,7 +251,7 @@ namespace LookForSpecialOffers
 
                         if (interestingOfferCount > 0)
                         {
-                            body += "\n\nHier ist der Link: https://www.penny.de/angebote \nLass es dir schmecken!";
+                            body += "\nHier ist der Link: https://www.penny.de/angebote \nLass es dir schmecken!";
                             SendEMail(EMail, subject, body);
                         }
                     }
@@ -435,9 +449,8 @@ namespace LookForSpecialOffers
                 worksheet.Cells["A1"].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
                 worksheet.Cells["A1"].Style.Font.Size = 14;
                 cellHeadline.Style.Font.Color.SetColor(Color.Wheat);
-                var style = worksheet.Cells[1, 1, 2, columnCount].Style;          // Bereich auswählen, welcher farblich geändert werden soll
-                style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
-                style.Fill.BackgroundColor.SetColor(Color.Red);
+
+                HighLightCells(1, 1, 2, columnCount, Color.Red, worksheet);
 
                 worksheet.Cells[3, 1].Value = "Name";
                 worksheet.Cells[3, 2].Value = "Bezeichnung";
@@ -449,9 +462,7 @@ namespace LookForSpecialOffers
                 worksheet.Cells[3, 8].Value = "Beginn";
 
                 // Beschriftung formatieren
-                style = worksheet.Cells[3, 1, 3, columnCount].Style;              // Bereich auswählen, welcher farblich geändert werden soll
-                style.Fill.PatternType = ExcelFillStyle.Solid;          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
-                style.Fill.BackgroundColor.SetColor(Color.Gray);
+                HighLightCells(3, 1, 3, columnCount, Color.Gray, worksheet);
 
                 int offsetRow = 4;
 
@@ -486,35 +497,45 @@ namespace LookForSpecialOffers
 
                     if (i % 2 == 1)
                     {
-                        style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, columnCount].Style;            // Bereich auswählen, welcher farblich geändert werden soll
-                        style.Fill.PatternType = ExcelFillStyle.Solid;                                          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
-                        style.Fill.BackgroundColor.SetColor(Color.LightGray);
+                        HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightGray, worksheet);
                     }
                     
                     // Überprüfe, ob eines der interessanten Produkten mit dabei ist. Falls ja, dann verändere die Hintergrundfarbe
                     foreach (var interestingProduct in interestingProducts)
                     {
                         string produktFullName = products[i].Name;
-                        double produktpricePerKg1 = products[i].PricePerKgOrLiter1;
-                        double produktpricePerKg2 = products[i].PricePerKgOrLiter2;
                         if (IsContains(interestingProduct.Name, produktFullName))
                         {
-                            if ((produktpricePerKg1 <= interestingProduct.PricePerKgCap && produktpricePerKg1 != 0) || (produktpricePerKg2 <= interestingProduct.PricePerKgCap && produktpricePerKg2 != 0))         // es existieren teilweise 2 kg Preise, je nach Produktausführung.
+
+                            if (products[i].PricePerKgOrLiter1 == 0 && products[i].PricePerKgOrLiter2 == 0)
                             {
-                                style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, columnCount].Style;            // Bereich auswählen, welcher farblich geändert werden soll
-                                style.Fill.PatternType = ExcelFillStyle.Solid;                                          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
-                                style.Fill.BackgroundColor.SetColor(Color.LightCoral);
+                                if (products[i].NewPrice <= interestingProduct.PriceCap)
+                                {
+                                    HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
+                                }
+                            }
+                            else if ((products[i].PricePerKgOrLiter1 <= interestingProduct.PriceCap && products[i].PricePerKgOrLiter1 != 0) ||
+                                     (products[i].PricePerKgOrLiter2 <= interestingProduct.PriceCap && products[i].PricePerKgOrLiter2 != 0))         // es existieren teilweise 2 kg Preise, je nach Produktausführung.
+                            {
+                                HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
                             }
                             else
                             {
-                                style = worksheet.Cells[i + offsetRow, 1, i + offsetRow, columnCount].Style;            // Bereich auswählen, welcher farblich geändert werden soll
-                                style.Fill.PatternType = ExcelFillStyle.Solid;                                          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
-                                style.Fill.BackgroundColor.SetColor(Color.Yellow);
+                                HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.Yellow, worksheet);
                             }
                         }
                     }
-                }
 
+                    //static void HighLightCells(int row, int offsetRow, int columnCount, Color color, ExcelWorksheet worksheet)  
+                    
+                }
+                static void HighLightCells(int fromRow, int fromCol, int toRow, int toCol, Color color, ExcelWorksheet worksheet)
+                {
+                    //var style = worksheet.Cells[row + offsetRow, 1, row + offsetRow, columnCount].Style;            // Bereich auswählen, welcher farblich geändert werden soll
+                    var style = worksheet.Cells[fromRow, fromCol, toRow, toCol].Style;            // Bereich auswählen, welcher farblich geändert werden soll
+                    style.Fill.PatternType = ExcelFillStyle.Solid;                                          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
+                    style.Fill.BackgroundColor.SetColor(color); 
+                }
                 //Spaltenbreite automatisch anpassen
                 for (int i = 1; i <= columnCount; i++)
                 {
@@ -621,20 +642,12 @@ namespace LookForSpecialOffers
     class ProduktFavorite
     {
         public string Name { get; set; }
-        public double PricePerKgCap { get; set; }
+        public double PriceCap { get; set; }
 
         public ProduktFavorite(string name, double pricePerKg)
         {
             Name = name;
-            PricePerKgCap = pricePerKg;
+            PriceCap = pricePerKg;
         }
     }
 }
-
-
-
-
-
-
-
-
