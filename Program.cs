@@ -7,6 +7,7 @@ using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.DevTools;
 using OpenQA.Selenium.Firefox;
 using OpenQA.Selenium.Interactions;
+using OpenQA.Selenium.Support.UI;
 using System;
 using System.Collections;
 using System.Diagnostics;
@@ -32,12 +33,14 @@ namespace LookForSpecialOffers
 {
     class Program
     {
-        //Zum testen. Soll von außen bestimmt werden
+        // Diese Daten sollen später durch die Eingabe gesetzt werden (entweder durch eine grafischen Oberfläche oder einfach durch eine Datei, in der man diese
+        // Daten direkt einträgt).
+        #region Testdaten
         static public List<ProduktFavorite> interestingProducts = new() 
         { 
             new ProduktFavorite("Quark", 2.60), 
             new ProduktFavorite("Thunfisch", 5.08), 
-            new ProduktFavorite("Tomate", 1.50),
+            new ProduktFavorite("Tomate", 9.50),
             new ProduktFavorite("Orange", 0.99),
             new ProduktFavorite("Buttermilch", 0.99)
         };
@@ -45,26 +48,25 @@ namespace LookForSpecialOffers
         static string ExcelPath { get; set; } = "Angebote.xlsx";
 
         static string EMail { get; set; } = "d.rothweiler@yahoo.de";
+        //static string EMail { get; set; } = "hadess90@web.de";
         //static string EMail { get; set; } = "tubadogan.85@googlemail.com";
+
+        static string zipCode = "68789";
+        #endregion
 
         static void Main(string[] args) 
         {
             ChromeOptions options = new ChromeOptions();
-            //FirefoxOptions optionsFirefox = new FirefoxOptions();
             //options.AddArgument("--headless");              //öffnet die seiten im hintergrund
-            //options.AddArgument("--disable-geolocation");
-            //options.AddArgument("--enable-geolocation=51.0156,13.7992");
 
             //funktioniert leider nicht
             //string profilePath = @"C:\Users\droth\AppData\Local\Google\Chrome\User Data";
             //options.AddArguments($"--user-data-dir={profilePath}");
-            string profilePathFirefox = @"C:\Users\droth\AppData\Local\Mozilla\Firefox\Profiles";
-            profilePathFirefox = @"C:\Users\droth\AppData\Roaming\Mozilla\Firefox\Profiles\h1iwxt69";
+            //string profilePathFirefox = @"C:\Users\droth\AppData\Local\Mozilla\Firefox\Profiles";
+            //profilePathFirefox = @"C:\Users\droth\AppData\Roaming\Mozilla\Firefox\Profiles\h1iwxt69";
             //optionsFirefox.AddArguments($"--user-data-dir={profilePathFirefox}");
             //optionsFirefox.Profile = new FirefoxProfile("h1iwxt69.default");
 
-            //IWebDriver driver = new ChromeDriver(options);
-            //IWebDriver driver = new FirefoxDriver(optionsFirefox);              // ich werde es mal mit firefox probieren
             using (IWebDriver driver = new ChromeDriver(options))
             {
 
@@ -84,17 +86,22 @@ namespace LookForSpecialOffers
 
                 driver.Navigate().GoToUrl(pathMainPage);
 
-                Thread.Sleep(1000);
+                //Thread.Sleep(1000);
 
 
                 //GoToOffersPage(driver, pathMainPage);      //Scheint jetzt richtig zu gehen
-                EnterZipCode(driver);
+                EnterZipCode(driver, zipCode);
 
                 ScrollToBottom(driver, 50, 20, 1000);         // Es scheint so, dass es wichtig ist, dass man das herunterscrollen in vielen Steps einteilen wichtig ist
 
 
                 string searchName = "//div[contains(@class, 'tabs__content-area')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
-                var mainContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 200, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
+
+
+
+                HtmlNode mainContainer = (HtmlNode)Find(driver,searchName, KindOfSearchElement.SelectSingleNode);   //Sucht solange nach diesen Element, bis es erschienen ist.
+
+                //var mainContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 200, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
                 List<Product> products = new();
 
                 if (mainContainer != null)     //Der maincontainer enthält alles relevantes
@@ -287,7 +294,7 @@ namespace LookForSpecialOffers
                     }
                 }
 
-                static void EnterZipCode(IWebDriver driver)
+                static void EnterZipCode(IWebDriver driver, string zipCode)
                 {
                     // Der Button befindet sich innerhalb der Shadow Root. Dieses kapselt die Elemente, die darin enthalten sind,
                     // d.h. dass die Elemente, die sich darin befinden, von außen geschützt sind. Deswegen muss erst auf den
@@ -295,7 +302,10 @@ namespace LookForSpecialOffers
                     var parent = driver.FindElement(By.XPath("//*[@id='usercentrics-root']"));
                     ShadowRoot shadowRoot = (ShadowRoot)((IJavaScriptExecutor)driver).ExecuteScript("return arguments[0].shadowRoot", parent);
                     // Zuerst muss der Cookie Button geklickt werden, weil dieser im Vordergrund ist und das anklicken des Button verhindert, mit dem alle Angebote eingesehen werden können. 
+                    Thread.Sleep(1000);
                     var CookieAcceptBtn = shadowRoot.FindElement(By.CssSelector(".sc-dcJsrY.iWikWl"));
+                    //var CookieAcceptBtn = (IWebElement)Find(driver, ".sc-dcJsrY.iWikWl", KindOfSearchElement.FindElementByCssSelector);
+
                     CookieAcceptBtn.Click();                         //bestätigt die Cookies
 
                     var ShowSearchForMarketBtn = driver.FindElement(By.ClassName("market-tile__btn-not-selected"));
@@ -305,14 +315,13 @@ namespace LookForSpecialOffers
                     // Wenn auf diesen Button geklickt wird, wird ein Eingabefeld angezeigt, wo die PLZ eingegeben werden kann
                     ShowSearchForMarketBtn.Click();
 
-                    // Text, der eingegeben werden soll
-                    string plz = "01239";
+
 
                     // Instanziieren der Actions-Klasse
                     actions = new Actions(driver);
 
                     // Schrittweise Eingabe des Textes
-                    foreach (char c in plz)
+                    foreach (char c in zipCode)
                     {
                         // Drücken der Taste für den aktuellen Buchstaben
                         actions.SendKeys(c.ToString()).Build().Perform();
@@ -346,13 +355,15 @@ namespace LookForSpecialOffers
                             }
                             count++;
                         }
-                        
+
                         //var href = aTag.GetAttribute("href");
                         return chooseMarketBtn;
                     }
                 }
             }
         }
+
+        
 
         static void GoToOffersPage(IWebDriver driver, string pathMainPage)
         {
@@ -516,6 +527,91 @@ namespace LookForSpecialOffers
                 Thread.Sleep(interval);
             }
             return null;
+        }
+        /// <summary>
+        /// Macht eig. das selbe wie die FindObject Methode, bloß eleganter.
+        /// </summary>
+        /// <param name="driver"></param>
+        /// <param name="searchName"></param>
+        /// <param name="searchElement"></param>
+        /// <param name="pollingIntervalTime"></param>
+        /// <param name="maxWaitTime"></param>
+        /// <returns></returns>
+        static object Find(IWebDriver driver, string searchName, KindOfSearchElement searchElement, int pollingIntervalTime = 500, int maxWaitTime = 10)
+        {
+            object element = null;
+            WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(maxWaitTime))
+            {
+                PollingInterval = TimeSpan.FromMilliseconds(pollingIntervalTime),
+            };
+            wait.IgnoreExceptionTypes(typeof(ElementNotInteractableException));
+
+
+            var main = wait.Until(d =>
+            {
+                switch (searchElement)
+                {
+                    case KindOfSearchElement.SelectSingleNode:
+                        try
+                        {
+                            HtmlDocument doc = new HtmlDocument();
+                            doc.LoadHtml(driver.PageSource);
+                            if (doc != null)
+                                element = doc.DocumentNode.SelectSingleNode(searchName);
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+
+                    case KindOfSearchElement.SelectNodes:
+                        try
+                        {
+                            HtmlDocument doc = new HtmlDocument();
+                            doc.LoadHtml(driver.PageSource);
+                            if (doc != null)
+                                element = doc.DocumentNode.SelectNodes(searchName);
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+
+                    case KindOfSearchElement.FindElementByCssSelector:
+                        try
+                        {
+                            element = driver.FindElement(By.CssSelector(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+
+                    case KindOfSearchElement.FindElementsByCssSelector:
+                        try
+                        {
+                            element = driver.FindElements(By.CssSelector(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    default:
+                        return false;
+                }
+
+                
+            });
+
+            return element;
         }
 
         static void SaveToExcel(List<Product> products, string period, string path)
