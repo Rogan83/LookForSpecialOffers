@@ -1,8 +1,12 @@
 ﻿using HtmlAgilityPack;
+using Microsoft.Win32;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
+using OpenQA.Selenium.DevTools;
+using OpenQA.Selenium.Firefox;
+using OpenQA.Selenium.Interactions;
 using System;
 using System.Collections;
 using System.Diagnostics;
@@ -12,9 +16,11 @@ using System.Net;
 using System.Net.Mail;
 using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
-
-//Bugs
-// gewisse produkte werden nicht gespeichert. Wie z.b. Die grapefruit vermutlich weil die stückzahl angegeben wird.
+using System.Xml.Linq;
+//Bugs:
+// - Ermittelt nicht den richtigen Wert für die Höhe von der Webseite
+// - Die Standorte werden nicht berücksichtigt, was bedeutet, dass keine lokalen Angebote gespeichert werden. Möglicher Ansatz: Wenn die webseite geladen wird und ganz nach unten gescrollt
+//   wird, dann erscheint zum einen ein button, den man drücken muss, um alle cookies zu bestätigen und zum andreen ein Fenster zur Standorteingabe. Dies muss man wohl selbst ausfüllen.
 
 //todo:
 // - Den User eventuell darauf hinweisen, dass die Excel Tabelle geschlossen werden muss, während das Programm läuft, sonst kann sie nicht mit neuen Daten überschrieben werden.
@@ -32,38 +38,60 @@ namespace LookForSpecialOffers
             new ProduktFavorite("Quark", 2.60), 
             new ProduktFavorite("Thunfisch", 5.08), 
             new ProduktFavorite("Tomate", 1.50),
-            new ProduktFavorite("Banane", 1.01)
+            new ProduktFavorite("Orange", 0.99),
+            new ProduktFavorite("Buttermilch", 0.99)
         };
 
         static string ExcelPath { get; set; } = "Angebote.xlsx";
 
         static string EMail { get; set; } = "d.rothweiler@yahoo.de";
+        //static string EMail { get; set; } = "tubadogan.85@googlemail.com";
 
         static void Main(string[] args) 
         {
             ChromeOptions options = new ChromeOptions();
-            options.AddArgument("--headless");              //öffnet die seiten im hintergrund
+            //FirefoxOptions optionsFirefox = new FirefoxOptions();
+            //options.AddArgument("--headless");              //öffnet die seiten im hintergrund
+            //options.AddArgument("--disable-geolocation");
+            //options.AddArgument("--enable-geolocation=51.0156,13.7992");
+
+            //funktioniert leider nicht
+            //string profilePath = @"C:\Users\droth\AppData\Local\Google\Chrome\User Data";
+            //options.AddArguments($"--user-data-dir={profilePath}");
+            string profilePathFirefox = @"C:\Users\droth\AppData\Local\Mozilla\Firefox\Profiles";
+            profilePathFirefox = @"C:\Users\droth\AppData\Roaming\Mozilla\Firefox\Profiles\h1iwxt69";
+            //optionsFirefox.AddArguments($"--user-data-dir={profilePathFirefox}");
+            //optionsFirefox.Profile = new FirefoxProfile("h1iwxt69.default");
+
+            //IWebDriver driver = new ChromeDriver(options);
+            //IWebDriver driver = new FirefoxDriver(optionsFirefox);              // ich werde es mal mit firefox probieren
             using (IWebDriver driver = new ChromeDriver(options))
             {
 
                 string periodheadline = ExtractHeadlineFromExcel(ExcelPath);
                 ExtractOffersFromPenny(driver, periodheadline);
 
-                //SendEMail("d.rothweiler@yahoo.de");
                 driver.Quit();
             }
+
+            
 
             // Extrahiert alle Sonderangebote vom Penny und speichert diese formatiert in eine Excel Tabelle ab.
             static void ExtractOffersFromPenny(IWebDriver driver, string oldPeriodHeadline)
             {
-                string pathMainPage = "https://www.penny.de";
+                string pathMainPage = "https://www.penny.de/angebote";
                 bool isNewOffersAvailable = false;                  // Sind neue Angebote vom Penny vorhanden? Falls ja, dann soll eine E-Mail verschickt werden
 
                 driver.Navigate().GoToUrl(pathMainPage);
 
-                GoToOffersPage(driver, pathMainPage);      //Scheint jetzt richtig zu gehen
+                Thread.Sleep(1000);
 
-                ScrollToBottom(driver, 10, 50);         // Es scheint so, dass es wichtig ist, dass man das herunterscrollen in vielen Steps einteilen wichtig ist
+
+                //GoToOffersPage(driver, pathMainPage);      //Scheint jetzt richtig zu gehen
+                EnterZipCode(driver);
+
+                ScrollToBottom(driver, 50, 20, 1000);         // Es scheint so, dass es wichtig ist, dass man das herunterscrollen in vielen Steps einteilen wichtig ist
+
 
                 string searchName = "//div[contains(@class, 'tabs__content-area')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
                 var mainContainer = (HtmlNode)FindObject(driver, searchName, KindOfSearchElement.SelectSingleNode, 200, 10);  //Sucht solange nach diesen Element, bis es erschienen ist.
@@ -81,11 +109,11 @@ namespace LookForSpecialOffers
 
                         foreach (var articleSectionContainer in articleSectionContainers)
                         {
-                            //var weekdayHeadline = articleContainerSection.Attributes["id"].Value;
+                            var weekdayHeadline = articleSectionContainer.Attributes["id"].Value;
 
                             var list = articleSectionContainer.SelectSingleNode("./div[@class='l-container']//ul[@class='tile-list']");
                             var items = list.SelectNodes("./li");
-
+                            //var items = list.SelectNodes("./li[contains(@class, 'tile-list')]");
                             foreach (var item in items)
                             {
                                 var badgeContainer = item.SelectSingleNode("./article//div[@class = 'badge--split t-bg--blue-petrol t-color--white']");
@@ -154,6 +182,8 @@ namespace LookForSpecialOffers
                         "//div[@class = 'category-menu__header-container']" +
                         "//div//div//div")).Attributes["data-startend"].Value;
 
+
+
                     // Wenn keine Datei vorhanden ist, dann kann auch nicht verglichen werden, ob das Datum von den Angeboten,
                     // die in der Excel Tabelle stehen und das Datum von den aktuellen Angeboten übereinstimmen. In diesen Fall
                     // muss davon ausgegangen werden, dass noch nicht über die neuen Angebote informiert wurde.
@@ -219,7 +249,7 @@ namespace LookForSpecialOffers
                                 if (product.Name.ToLower().Trim().Contains(interestingProduct.Name.ToLower().Trim()))
                                 {
                                     // falls bei beiden Kg bzw. Liter Preise nichts drin steht, dann könnte das bedeuten, dass entweder die Menge schon ein Kilo entspricht oder dass es einzel Preise sind
-                                    if (product.PricePerKgOrLiter1 == 0 && product.PricePerKgOrLiter2 == 0) 
+                                    if (product.PricePerKgOrLiter1 == 0 && product.PricePerKgOrLiter2 == 0)
                                     {
                                         if (product.NewPrice <= interestingProduct.PriceCap)
                                         {
@@ -254,6 +284,71 @@ namespace LookForSpecialOffers
                             body += "\nHier ist der Link: https://www.penny.de/angebote \nLass es dir schmecken!";
                             SendEMail(EMail, subject, body);
                         }
+                    }
+                }
+
+                static void EnterZipCode(IWebDriver driver)
+                {
+                    // Der Button befindet sich innerhalb der Shadow Root. Dieses kapselt die Elemente, die darin enthalten sind,
+                    // d.h. dass die Elemente, die sich darin befinden, von außen geschützt sind. Deswegen muss erst auf den
+                    // Shadow Root zugegriffen werden und von dort aus kann nach den Elementen darin gesucht werden.
+                    var parent = driver.FindElement(By.XPath("//*[@id='usercentrics-root']"));
+                    ShadowRoot shadowRoot = (ShadowRoot)((IJavaScriptExecutor)driver).ExecuteScript("return arguments[0].shadowRoot", parent);
+                    // Zuerst muss der Cookie Button geklickt werden, weil dieser im Vordergrund ist und das anklicken des Button verhindert, mit dem alle Angebote eingesehen werden können. 
+                    var CookieAcceptBtn = shadowRoot.FindElement(By.CssSelector(".sc-dcJsrY.iWikWl"));
+                    CookieAcceptBtn.Click();                         //bestätigt die Cookies
+
+                    var ShowSearchForMarketBtn = driver.FindElement(By.ClassName("market-tile__btn-not-selected"));
+
+                    Actions actions = new Actions(driver);
+                    actions.MoveToElement(ShowSearchForMarketBtn).Perform();
+                    // Wenn auf diesen Button geklickt wird, wird ein Eingabefeld angezeigt, wo die PLZ eingegeben werden kann
+                    ShowSearchForMarketBtn.Click();
+
+                    // Text, der eingegeben werden soll
+                    string plz = "01239";
+
+                    // Instanziieren der Actions-Klasse
+                    actions = new Actions(driver);
+
+                    // Schrittweise Eingabe des Textes
+                    foreach (char c in plz)
+                    {
+                        // Drücken der Taste für den aktuellen Buchstaben
+                        actions.SendKeys(c.ToString()).Build().Perform();
+                    }
+
+
+                    IWebElement wrapper = driver.FindElement(By.XPath("//*[@class='market-modal__wrapper']"));
+                    //Thread.Sleep(1000);
+                    IWebElement chooseMarketBtn = null;
+                    chooseMarketBtn = SearchForChooseMarketBtn(driver, wrapper, chooseMarketBtn, 100, 5000);
+
+                    if (chooseMarketBtn != null)
+                        ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", chooseMarketBtn);
+
+                    // Sucht solange nach diesen Button, bis er erscheint.
+                    static IWebElement SearchForChooseMarketBtn(IWebDriver driver, IWebElement wrapper, IWebElement chooseMarketBtn, int delayStep, int maxDelayTotal)
+                    {
+                        int maxCount = maxDelayTotal / delayStep;
+                        int count = 0;
+                        while (count < maxCount)
+                        {
+                            try
+                            {
+                                chooseMarketBtn = wrapper.FindElement(By.XPath(".//main//div[@class='market-modal__results']//ul//li[1]//article//div//div//a"));
+                                break;
+                            }
+                            catch
+                            {
+                                chooseMarketBtn = null;
+                                Thread.Sleep(delayStep);
+                            }
+                            count++;
+                        }
+                        
+                        //var href = aTag.GetAttribute("href");
+                        return chooseMarketBtn;
                     }
                 }
             }
@@ -297,7 +392,7 @@ namespace LookForSpecialOffers
         /// <param name="delayPerStep"></param>
         /// <param name="steps"></param>
 
-        static void ScrollToBottom(IWebDriver driver, int delayPerStep = 200, int steps = 10)
+        static void ScrollToBottom(IWebDriver driver, int delayPerStep = 200, int steps = 10, int delayDetermineScrollHeigth = 500)
         {
             IJavaScriptExecutor js = (IJavaScriptExecutor)driver;
             
@@ -306,7 +401,7 @@ namespace LookForSpecialOffers
             //Es dauert eine Weile, bis die Scrollheight ermittelt wird. Deswegen wird die schleife so lange wiederholt, bis sind die Scrollheight nicht mehr verändert, was bedeutet, dass diese den entgültigen wert ermittelt haben muss
             while (true)
             {
-                Thread.Sleep(500);
+                Thread.Sleep(delayDetermineScrollHeigth);
                 newScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");     
 
                 if (newScrollHeight == oldScrollHeight)
