@@ -1,4 +1,5 @@
-﻿using System;
+﻿using OpenQA.Selenium;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,6 +12,7 @@ namespace LookForSpecialOffers
         FindElementByCssSelector,
         FindElementsByCssSelector,
         FindElementByClassName,
+        FindElementByXPath,
         SelectSingleNode,
         SelectNodes
     }
