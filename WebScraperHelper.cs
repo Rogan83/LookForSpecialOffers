@@ -60,8 +60,8 @@ namespace LookForSpecialOffers
         /// </summary>
         /// <param name="driver"></param>
         /// <param name="delayPerStep"></param>
-        /// <param name="steps"></param>
-        internal static void ScrollToBottom(IWebDriver driver, int delayPerStep = 200, int steps = 10, int delayDetermineScrollHeigth = 500)
+        /// <param name="stepsCount"></param>
+        internal static void ScrollToBottom(IWebDriver driver, int delayPerStep = 200, int stepsCount = 10, int delayDetermineScrollHeigth = 500)
         {
             IJavaScriptExecutor js = (IJavaScriptExecutor)driver;
             long oldScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");
@@ -84,10 +84,10 @@ namespace LookForSpecialOffers
 
             //Nachdem die Höhe der Seite ermittelt wurde, soll nun Stufenweise die Seite herunter gescrollt werden, damit der Inhalt Stück für Stück
             //von der Seite nachgeladen werden kann.
-            long offset = oldScrollHeight / steps;
+            long offset = oldScrollHeight / stepsCount;
             long newPos = 0;
 
-            for (int i = 0; i < steps; i++)
+            for (int i = 0; i < stepsCount; i++)
             {
                 newPos += offset;
 

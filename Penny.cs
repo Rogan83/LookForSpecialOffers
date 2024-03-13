@@ -15,8 +15,6 @@ namespace LookForSpecialOffers
 {
     internal static class Penny
     {
-        
-
         // Extrahiert alle Sonderangebote vom Penny und speichert diese formatiert in eine Excel Tabelle ab.
         internal static void ExtractOffers(IWebDriver driver, string oldPeriodHeadline)
         {

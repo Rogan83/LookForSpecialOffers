@@ -70,7 +70,8 @@ namespace LookForSpecialOffers
             using (IWebDriver driver = new ChromeDriver(options))
             {
                 string periodheadline = WebScraperHelper.ExtractHeadlineFromExcel(ExcelPath);
-                Penny.ExtractOffers(driver, periodheadline);
+                //Penny.ExtractOffers(driver, periodheadline);
+                Lidl.ExtractOffers(driver, periodheadline);
 
                 driver.Quit();
             }
