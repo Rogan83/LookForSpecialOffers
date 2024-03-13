@@ -51,7 +51,7 @@ namespace LookForSpecialOffers
         //static string EMail { get; set; } = "hadess90@web.de";
         //static string EMail { get; set; } = "tubadogan.85@googlemail.com";
 
-        static string zipCode = "68789";
+        static string zipCode = "01239";
         #endregion
 
         static void Main(string[] args) 
@@ -69,14 +69,11 @@ namespace LookForSpecialOffers
 
             using (IWebDriver driver = new ChromeDriver(options))
             {
-
                 string periodheadline = ExtractHeadlineFromExcel(ExcelPath);
                 ExtractOffersFromPenny(driver, periodheadline);
 
                 driver.Quit();
             }
-
-            
 
             // Extrahiert alle Sonderangebote vom Penny und speichert diese formatiert in eine Excel Tabelle ab.
             static void ExtractOffersFromPenny(IWebDriver driver, string oldPeriodHeadline)
@@ -86,18 +83,13 @@ namespace LookForSpecialOffers
 
                 driver.Navigate().GoToUrl(pathMainPage);
 
-                //Thread.Sleep(1000);
-
-
                 //GoToOffersPage(driver, pathMainPage);      //Scheint jetzt richtig zu gehen
+                ClickCookieButton(driver);
                 EnterZipCode(driver, zipCode);
 
                 ScrollToBottom(driver, 50, 20, 1000);         // Es scheint so, dass es wichtig ist, dass man das herunterscrollen in vielen Steps einteilen wichtig ist
 
-
                 string searchName = "//div[contains(@class, 'tabs__content-area')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
-
-
 
                 HtmlNode mainContainer = (HtmlNode)Find(driver,searchName, KindOfSearchElement.SelectSingleNode);   //Sucht solange nach diesen Element, bis es erschienen ist.
 
@@ -189,8 +181,6 @@ namespace LookForSpecialOffers
                         "//div[@class = 'category-menu__header-container']" +
                         "//div//div//div")).Attributes["data-startend"].Value;
 
-
-
                     // Wenn keine Datei vorhanden ist, dann kann auch nicht verglichen werden, ob das Datum von den Angeboten,
                     // die in der Excel Tabelle stehen und das Datum von den aktuellen Angeboten übereinstimmen. In diesen Fall
                     // muss davon ausgegangen werden, dass noch nicht über die neuen Angebote informiert wurde.
@@ -277,8 +267,8 @@ namespace LookForSpecialOffers
                         string subject = string.Empty;
                         if (interestingOfferCount > 1)
                         {
-                            subject = "Interessantes Angebote gefunden!";
-                            body = $"Gute Nachricht! Folgende Angebote, welche deine preislichen Vorstellungen entspricht, wurden gefunden: \n\n{offers}";
+                            subject = "Interessante Angebote gefunden!";
+                            body = $"Gute Nachricht! Folgende Angebote, welche deinen preislichen Vorstellungen entspricht, wurden gefunden: \n\n{offers}";
                         }
                         else if (interestingOfferCount == 1)
                         {
@@ -294,7 +284,7 @@ namespace LookForSpecialOffers
                     }
                 }
 
-                static void EnterZipCode(IWebDriver driver, string zipCode)
+                static void ClickCookieButton(IWebDriver driver)
                 {
                     // Der Button befindet sich innerhalb der Shadow Root. Dieses kapselt die Elemente, die darin enthalten sind,
                     // d.h. dass die Elemente, die sich darin befinden, von außen geschützt sind. Deswegen muss erst auf den
@@ -302,20 +292,35 @@ namespace LookForSpecialOffers
                     var parent = driver.FindElement(By.XPath("//*[@id='usercentrics-root']"));
                     ShadowRoot shadowRoot = (ShadowRoot)((IJavaScriptExecutor)driver).ExecuteScript("return arguments[0].shadowRoot", parent);
                     // Zuerst muss der Cookie Button geklickt werden, weil dieser im Vordergrund ist und das anklicken des Button verhindert, mit dem alle Angebote eingesehen werden können. 
-                    Thread.Sleep(1000);
-                    var CookieAcceptBtn = shadowRoot.FindElement(By.CssSelector(".sc-dcJsrY.iWikWl"));
-                    //var CookieAcceptBtn = (IWebElement)Find(driver, ".sc-dcJsrY.iWikWl", KindOfSearchElement.FindElementByCssSelector);
+                    //Thread.Sleep(1000);
+                    //var CookieAcceptBtn = shadowRoot.FindElement(By.CssSelector(".sc-dcJsrY.iWikWl"));
+                    var cookieAcceptBtn = (IWebElement)Find(shadowRoot, driver, ".sc-dcJsrY.iWikWl", KindOfSearchElement.FindElementByCssSelector);
 
-                    CookieAcceptBtn.Click();                         //bestätigt die Cookies
+                    if (!CheckIfInteractable(cookieAcceptBtn))
+                        return;
+                }
 
-                    var ShowSearchForMarketBtn = driver.FindElement(By.ClassName("market-tile__btn-not-selected"));
+                static void EnterZipCode(IWebDriver driver, string zipCode)
+                {
+                    //var ShowSearchForMarketBtn = driver.FindElement(By.ClassName("market-tile__btn-not-selected"));
+                    IWebElement ShowSearchForMarketBtn = null;
+                    try
+                    {
+                        ShowSearchForMarketBtn = (IWebElement)Find(driver, "market-tile__btn-not-selected", KindOfSearchElement.FindElementByClassName); 
+
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error: {ex}");
+                    }
 
                     Actions actions = new Actions(driver);
-                    actions.MoveToElement(ShowSearchForMarketBtn).Perform();
-                    // Wenn auf diesen Button geklickt wird, wird ein Eingabefeld angezeigt, wo die PLZ eingegeben werden kann
-                    ShowSearchForMarketBtn.Click();
-
-
+                    if (ShowSearchForMarketBtn != null)
+                    {
+                        actions.MoveToElement(ShowSearchForMarketBtn).Perform();
+                        // Wenn auf diesen Button geklickt wird, wird ein Eingabefeld angezeigt, wo die PLZ eingegeben werden kann
+                        ShowSearchForMarketBtn.Click();
+                    }
 
                     // Instanziieren der Actions-Klasse
                     actions = new Actions(driver);
@@ -363,7 +368,45 @@ namespace LookForSpecialOffers
             }
         }
 
-        
+        /// <summary>
+        /// Überprüft, ob ein Element interagierbar ist
+        /// </summary>
+        /// <param name="cookieAcceptBtn"></param>
+        private static bool CheckIfInteractable(IWebElement cookieAcceptBtn)
+        {
+            bool isClickable = false;
+            int waitTimeInSeconds = 10;
+            int delayStep = 10;
+            int maxCount = waitTimeInSeconds * 1000 / delayStep;
+            int count = 0;
+
+            while (!isClickable && count < maxCount)
+            {
+                if (cookieAcceptBtn.Enabled && cookieAcceptBtn.Displayed)
+                {
+                    isClickable = true;
+                }
+                Thread.Sleep(delayStep);
+                count++;
+            }
+
+            try
+            {
+                cookieAcceptBtn.Click();                         //bestätigt die Cookies
+                return true;
+            }
+            catch (ElementNotInteractableException ex)
+            {
+                Console.WriteLine($"Element not interactable: {ex.Message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected Exception: {ex.Message}");
+                return false;
+            }
+        }
+
 
         static void GoToOffersPage(IWebDriver driver, string pathMainPage)
         {
@@ -604,11 +647,67 @@ namespace LookForSpecialOffers
                         {
                             return false;
                         }
+                    case KindOfSearchElement.FindElementByClassName:
+                        try
+                        {
+                            element = driver.FindElement(By.ClassName(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    default:
+                        return false;
+                }
+            });
+
+            return element;
+        }
+
+        static object Find(ShadowRoot shadowRoot, IWebDriver driver, string searchName, KindOfSearchElement searchElement, int pollingIntervalTime = 500, int maxWaitTime = 10)
+        {
+            object element = null;
+            WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(maxWaitTime))
+            {
+                PollingInterval = TimeSpan.FromMilliseconds(pollingIntervalTime),
+            };
+            wait.IgnoreExceptionTypes(typeof(ElementNotInteractableException));
+
+
+            var main = wait.Until(d =>
+            {
+                switch (searchElement)
+                {
+                    case KindOfSearchElement.FindElementByCssSelector:
+                        try
+                        {
+                            element = shadowRoot.FindElement(By.CssSelector(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+
+                    case KindOfSearchElement.FindElementsByCssSelector:
+                        try
+                        {
+                            element = shadowRoot.FindElements(By.CssSelector(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
                     default:
                         return false;
                 }
 
-                
+
             });
 
             return element;

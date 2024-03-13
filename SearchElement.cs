@@ -10,6 +10,7 @@ namespace LookForSpecialOffers
     {
         FindElementByCssSelector,
         FindElementsByCssSelector,
+        FindElementByClassName,
         SelectSingleNode,
         SelectNodes
     }
