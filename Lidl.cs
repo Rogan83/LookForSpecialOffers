@@ -1,4 +1,5 @@
 ﻿using HtmlAgilityPack;
+using LookForSpecialOffers.Enums;
 using Microsoft.Extensions.Primitives;
 using OpenQA.Selenium;
 using System;
@@ -11,12 +12,20 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
+
+//Bug:
+// Die Produkte von der Kategorie Deluxe wurden nicht mit hinzugefügt
+
+//Todo:
+// - Der Beginn von jeden Artikel und ob der Artikel nur mit der App verfügbar ist, wenn möglich noch in die Tabelle speichern
+//   Außerdem noch von wann bis wann diese Angebote gültig sind, wenn möglich (Notfalls von Penny übernehmen)
+
 namespace LookForSpecialOffers
 {
     internal class Lidl
     {
         static List<Product> products = new();
-
+        
         internal static void ExtractOffers(IWebDriver driver, string oldPeriodHeadline)
         {
             string pathMainPage = "https://www.lidl.de/store";
@@ -31,7 +40,7 @@ namespace LookForSpecialOffers
             try
             {
                 mainDivContainer = (IWebElement?)WebScraperHelper.Find(driver, "//div[@class = 'AHeroStageItems']",
-                    KindOfSearchElement.FindElementByXPath);  //Sucht solange nach diesen Element, bis es erschienen ist.
+                    KindOfSearchElement.FindElementByXPath,500,3);  //Sucht solange nach diesen Element, bis es erschienen ist.
             }
             catch (Exception ex)
             {
@@ -77,11 +86,14 @@ namespace LookForSpecialOffers
                     }
                 }
             }
+            string period = string.Empty;
+            WebScraperHelper.SaveToExcel(products, period, Program.ExcelPath, Discounter.Lidl);
 
+            #region verschachtelte Methode(n)
             static void ExtractSubPage(IWebDriver driver, string url)
             {
 
-                //WebScraperHelper.ScrollToBottom(driver, 50, 20, 1000);  
+                WebScraperHelper.ScrollToBottom(driver, 50, 20, 1000);  
 
                 IWebElement? mainDivContainer = null;       //Hauptcontainer
 
@@ -235,7 +247,7 @@ namespace LookForSpecialOffers
                     return price;
                 }
             }
-
+            #endregion
         }
     }
 }

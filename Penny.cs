@@ -10,6 +10,7 @@ using System.Net;
 using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
+using LookForSpecialOffers.Enums;
 
 namespace LookForSpecialOffers
 {
@@ -125,7 +126,7 @@ namespace LookForSpecialOffers
                 }
 
                 InformPerEMail(isNewOffersAvailable, products);
-                WebScraperHelper.SaveToExcel(products, period, Program.ExcelPath);
+                WebScraperHelper.SaveToExcel(products, period, Program.ExcelPath, Discounter.Penny);
             }
 
             static string[] ExtractPrices(string input)

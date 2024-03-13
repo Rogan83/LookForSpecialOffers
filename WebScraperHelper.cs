@@ -12,11 +12,14 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Net.Mail;
 using System.Net;
+using LookForSpecialOffers.Enums;
 
 namespace LookForSpecialOffers
 {
     internal static class WebScraperHelper
     {
+        internal static ExcelPackage excelPackage = new ExcelPackage();
+
         /// <summary>
         /// Überprüft, ob ein Element interagierbar ist
         /// </summary>
@@ -267,7 +270,7 @@ namespace LookForSpecialOffers
             return element;
         }
 
-        internal static void SaveToExcel(List<Product> products, string period, string path)
+        internal static void SaveToExcel(List<Product> products, string period, string path, Discounter discounter)
         {
             if (products == null)
             {
@@ -277,125 +280,143 @@ namespace LookForSpecialOffers
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
             string excelFilePath = path;
 
-            using (ExcelPackage excelPackage = new ExcelPackage())
-            {
-                ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets.Add("Penny");
+            ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets.Add(discounter.ToString());
 
-                int columnCount = 8;                                  // Anzahl der Spalten
+            int columnCount = 8;                                  // Anzahl der Spalten
 
-                var cellHeadline = worksheet.Cells[1, 1];
-                worksheet.Cells["A1:H2"].Merge = true;                  // Bereich verbinden
+            var cellHeadline = worksheet.Cells[1, 1];
+            worksheet.Cells["A1:H2"].Merge = true;                  // Bereich verbinden
 
+            if (discounter == Discounter.Penny)
                 cellHeadline.Value = $"Die Angebote vom Penny vom {period}";
+            else if (discounter == Discounter.Lidl)
+                cellHeadline.Value = $"Die Angebote vom Lidl";
+            else if (discounter == Discounter.Netto)
+                cellHeadline.Value = $"Die Angebote vom Netto";
+            else if (discounter == Discounter.Kaufland)
+                cellHeadline.Value = $"Die Angebote vom Kaufland";
+            else if (discounter == Discounter.Aldi)
+                cellHeadline.Value = $"Die Angebote vom Aldi";
 
-                // Überschrift formatieren
-                worksheet.Cells["A1"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-                worksheet.Cells["A1"].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
-                worksheet.Cells["A1"].Style.Font.Size = 14;
-                cellHeadline.Style.Font.Color.SetColor(Color.Wheat);
 
+            // Überschrift formatieren
+            worksheet.Cells["A1"].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            worksheet.Cells["A1"].Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+            worksheet.Cells["A1"].Style.Font.Size = 14;
+            cellHeadline.Style.Font.Color.SetColor(Color.Wheat);
+
+            if (discounter == Discounter.Penny)
                 HighLightCells(1, 1, 2, columnCount, Color.Red, worksheet);
+            else if (discounter == Discounter.Lidl)
+                HighLightCells(1, 1, 2, columnCount, Color.Green, worksheet);
+            else if (discounter == Discounter.Netto)
+                HighLightCells(1, 1, 2, columnCount, Color.Yellow, worksheet);
+            else if (discounter == Discounter.Kaufland)
+                HighLightCells(1, 1, 2, columnCount, Color.LightPink, worksheet);
+            else if (discounter == Discounter.Aldi)
+                HighLightCells(1, 1, 2, columnCount, Color.LightSkyBlue, worksheet);
 
-                worksheet.Cells[3, 1].Value = "Name";
-                worksheet.Cells[3, 2].Value = "Bezeichnung";
-                worksheet.Cells[3, 3].Value = "Vorheriger Preis";
-                worksheet.Cells[3, 4].Value = "Neuer Preis";
-                worksheet.Cells[3, 5].Value = "Preis Pro Kg oder Liter (erstes Angebot)";
-                worksheet.Cells[3, 6].Value = "Preis Pro Kg oder Liter (zweites Angebot)";
-                worksheet.Cells[3, 7].Value = "Info";
-                worksheet.Cells[3, 8].Value = "Beginn";
+            worksheet.Cells[3, 1].Value = "Name";
+            worksheet.Cells[3, 2].Value = "Bezeichnung";
+            worksheet.Cells[3, 3].Value = "Vorheriger Preis";
+            worksheet.Cells[3, 4].Value = "Neuer Preis";
+            worksheet.Cells[3, 5].Value = "Preis Pro Kg oder Liter (erstes Angebot)";
+            worksheet.Cells[3, 6].Value = "Preis Pro Kg oder Liter (zweites Angebot)";
+            worksheet.Cells[3, 7].Value = "Info";
+            worksheet.Cells[3, 8].Value = "Beginn";
 
-                // Beschriftung formatieren
-                HighLightCells(3, 1, 3, columnCount, Color.Gray, worksheet);
+            // Beschriftung formatieren
+            HighLightCells(3, 1, 3, columnCount, Color.Gray, worksheet);
 
-                int offsetRow = 4;
+            int offsetRow = 4;
 
-                string euroFormat = "#,##0.00 €";           // Währungsformat
+            string euroFormat = "#,##0.00 €";           // Währungsformat
 
-                for (int i = 0; i < products.Count; i++)
+            for (int i = 0; i < products.Count; i++)
+            {
+                worksheet.Cells[i + offsetRow, 1].Value = products[i].Name;
+                worksheet.Cells[i + offsetRow, 2].Value = products[i].Description;
+                if (products[i].OldPrice != 0)
                 {
-                    worksheet.Cells[i + offsetRow, 1].Value = products[i].Name;
-                    worksheet.Cells[i + offsetRow, 2].Value = products[i].Description;
-                    if (products[i].OldPrice != 0)
-                    {
-                        worksheet.Cells[i + offsetRow, 3].Value = products[i].OldPrice;
-                        worksheet.Cells[i + offsetRow, 3].Style.Numberformat.Format = euroFormat; ;
-                    }
-                    if (products[i].NewPrice != 0)
-                    {
-                        worksheet.Cells[i + offsetRow, 4].Value = products[i].NewPrice;
-                        worksheet.Cells[i + offsetRow, 4].Style.Numberformat.Format = euroFormat;
-                    }
-                    if (products[i].PricePerKgOrLiter1 != 0)
-                    {
-                        worksheet.Cells[i + offsetRow, 5].Value = products[i].PricePerKgOrLiter1;
-                        worksheet.Cells[i + offsetRow, 5].Style.Numberformat.Format = euroFormat;
-                    }
-                    if (products[i].PricePerKgOrLiter2 != 0)
-                    {
-                        worksheet.Cells[i + offsetRow, 6].Value = products[i].PricePerKgOrLiter2;
-                        worksheet.Cells[i + offsetRow, 6].Style.Numberformat.Format = euroFormat;
-                    }
-                    worksheet.Cells[i + offsetRow, 7].Value = products[i].Badge;
-                    worksheet.Cells[i + offsetRow, 8].Value = products[i].OfferStartDate;
+                    worksheet.Cells[i + offsetRow, 3].Value = products[i].OldPrice;
+                    worksheet.Cells[i + offsetRow, 3].Style.Numberformat.Format = euroFormat; ;
+                }
+                if (products[i].NewPrice != 0)
+                {
+                    worksheet.Cells[i + offsetRow, 4].Value = products[i].NewPrice;
+                    worksheet.Cells[i + offsetRow, 4].Style.Numberformat.Format = euroFormat;
+                }
+                if (products[i].PricePerKgOrLiter1 != 0)
+                {
+                    worksheet.Cells[i + offsetRow, 5].Value = products[i].PricePerKgOrLiter1;
+                    worksheet.Cells[i + offsetRow, 5].Style.Numberformat.Format = euroFormat;
+                }
+                if (products[i].PricePerKgOrLiter2 != 0)
+                {
+                    worksheet.Cells[i + offsetRow, 6].Value = products[i].PricePerKgOrLiter2;
+                    worksheet.Cells[i + offsetRow, 6].Style.Numberformat.Format = euroFormat;
+                }
+                worksheet.Cells[i + offsetRow, 7].Value = products[i].Badge;
+                worksheet.Cells[i + offsetRow, 8].Value = products[i].OfferStartDate;
 
-                    if (i % 2 == 1)
-                    {
-                        HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightGray, worksheet);
-                    }
+                if (i % 2 == 1)
+                {
+                    HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightGray, worksheet);
+                }
 
-                    // Überprüfe, ob eines der interessanten Produkten mit dabei ist. Falls ja, dann verändere die Hintergrundfarbe
-                    foreach (var interestingProduct in Program.InterestingProducts)
+                // Überprüfe, ob eines der interessanten Produkten mit dabei ist. Falls ja, dann verändere die Hintergrundfarbe
+                foreach (var interestingProduct in Program.InterestingProducts)
+                {
+                    string produktFullName = products[i].Name;
+                    if (IsContains(interestingProduct.Name, produktFullName))
                     {
-                        string produktFullName = products[i].Name;
-                        if (IsContains(interestingProduct.Name, produktFullName))
+
+                        if (products[i].PricePerKgOrLiter1 == 0 && products[i].PricePerKgOrLiter2 == 0)
                         {
-
-                            if (products[i].PricePerKgOrLiter1 == 0 && products[i].PricePerKgOrLiter2 == 0)
-                            {
-                                if (products[i].NewPrice <= interestingProduct.PriceCap)
-                                {
-                                    HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
-                                }
-                            }
-                            else if ((products[i].PricePerKgOrLiter1 <= interestingProduct.PriceCap && products[i].PricePerKgOrLiter1 != 0) ||
-                                     (products[i].PricePerKgOrLiter2 <= interestingProduct.PriceCap && products[i].PricePerKgOrLiter2 != 0))         // es existieren teilweise 2 kg Preise, je nach Produktausführung.
+                            if (products[i].NewPrice <= interestingProduct.PriceCap)
                             {
                                 HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
                             }
-                            else
-                            {
-                                HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.Yellow, worksheet);
-                            }
+                        }
+                        else if ((products[i].PricePerKgOrLiter1 <= interestingProduct.PriceCap && products[i].PricePerKgOrLiter1 != 0) ||
+                                    (products[i].PricePerKgOrLiter2 <= interestingProduct.PriceCap && products[i].PricePerKgOrLiter2 != 0))         // es existieren teilweise 2 kg Preise, je nach Produktausführung.
+                        {
+                            HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
+                        }
+                        else
+                        {
+                            HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.Yellow, worksheet);
                         }
                     }
-
-                    //static void HighLightCells(int row, int offsetRow, int columnCount, Color color, ExcelWorksheet worksheet)  
-
-                }
-                static void HighLightCells(int fromRow, int fromCol, int toRow, int toCol, Color color, ExcelWorksheet worksheet)
-                {
-                    //var style = worksheet.Cells[row + offsetRow, 1, row + offsetRow, columnCount].Style;            // Bereich auswählen, welcher farblich geändert werden soll
-                    var style = worksheet.Cells[fromRow, fromCol, toRow, toCol].Style;            // Bereich auswählen, welcher farblich geändert werden soll
-                    style.Fill.PatternType = ExcelFillStyle.Solid;                                          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
-                    style.Fill.BackgroundColor.SetColor(color);
-                }
-                //Spaltenbreite automatisch anpassen
-                for (int i = 1; i <= columnCount; i++)
-                {
-                    worksheet.Column(i).AutoFit();
                 }
 
-                FileInfo excelFile = new FileInfo(excelFilePath);
-                try
-                {
-                    excelPackage.SaveAs(excelFile);
-                }
-                catch
-                {
-                    Console.WriteLine("Speichern fehlgeschlagen.");
-                }
+                //static void HighLightCells(int row, int offsetRow, int columnCount, Color color, ExcelWorksheet worksheet)  
+
             }
+            static void HighLightCells(int fromRow, int fromCol, int toRow, int toCol, Color color, ExcelWorksheet worksheet)
+            {
+                //var style = worksheet.Cells[row + offsetRow, 1, row + offsetRow, columnCount].Style;            // Bereich auswählen, welcher farblich geändert werden soll
+                var style = worksheet.Cells[fromRow, fromCol, toRow, toCol].Style;            // Bereich auswählen, welcher farblich geändert werden soll
+                style.Fill.PatternType = ExcelFillStyle.Solid;                                          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
+                style.Fill.BackgroundColor.SetColor(color);
+            }
+            //Spaltenbreite automatisch anpassen
+            for (int i = 1; i <= columnCount; i++)
+            {
+                worksheet.Column(i).AutoFit();
+            }
+
+            FileInfo excelFile = new FileInfo(excelFilePath);
+            try
+            {
+                excelPackage.SaveAs(excelFile);
+            }
+            catch
+            {
+                Console.WriteLine("Speichern fehlgeschlagen.");
+            }
+
+            
         }
 
         /// <summary>

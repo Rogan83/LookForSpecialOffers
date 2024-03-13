@@ -1,4 +1,5 @@
 ﻿using HtmlAgilityPack;
+using LookForSpecialOffers.Enums;
 using Microsoft.Win32;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
@@ -70,8 +71,10 @@ namespace LookForSpecialOffers
             using (IWebDriver driver = new ChromeDriver(options))
             {
                 string periodheadline = WebScraperHelper.ExtractHeadlineFromExcel(ExcelPath);
-                //Penny.ExtractOffers(driver, periodheadline);
+                Penny.ExtractOffers(driver, periodheadline);
                 Lidl.ExtractOffers(driver, periodheadline);
+
+                WebScraperHelper.excelPackage.Dispose();
 
                 driver.Quit();
             }
