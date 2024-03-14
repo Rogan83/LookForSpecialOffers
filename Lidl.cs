@@ -36,6 +36,11 @@ namespace LookForSpecialOffers
 
             driver.Navigate().GoToUrl(pathMainPage);
 
+            //driver.FindElement(By.Id("onetrust-accept-btn-handler"));
+            //akzeptiere den Cookie Button
+            var cookieAcceptBtn = (IWebElement?)WebScraperHelper.Find(driver, "onetrust-accept-btn-handler", KindOfSearchElement.FindElementByID);
+            cookieAcceptBtn?.Click();
+
             // Gehe zu jeder Unterseite ...
             IWebElement? mainDivContainer = null;
 
@@ -101,7 +106,8 @@ namespace LookForSpecialOffers
             #region verschachtelte Methode(n)
             static void ExtractSubPage(IWebDriver driver, string url)
             {
-                WebScraperHelper.ScrollToBottom(driver, 50, 30, 1000);  
+                WebScraperHelper.ScrollToBottom(driver, 50, 30, 1000);
+                ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
 
                 IWebElement? mainDivContainer = null;       //Hauptcontainer
 
@@ -194,14 +200,7 @@ namespace LookForSpecialOffers
                                 Console.WriteLine("Beschreibung nicht vorhanden");
                             }
 
-                            //string articlePricePerKgText = divProduct.FindElement(By.CssSelector(".price-footer")).Text;
-                            //double articlePricePerKg = 0;
-                            //if (!double.TryParse(ExtractPrice(articlePricePerKgText), CultureInfo.InvariantCulture, out articlePricePerKg))
-                            //    Console.WriteLine($"folgende Zeichenkette konnte nicht umgewandelt werden: {newPriceText}");
-
-                            products.Add(new Product(articleName, description, oldPrice,newPrice, articlePricePerKg, 0, string.Empty, string.Empty));
-
-                            int i = 0;
+                            products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, 0, string.Empty, string.Empty));
                         }
                     }
                 }

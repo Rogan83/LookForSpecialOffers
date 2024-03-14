@@ -220,6 +220,17 @@ namespace LookForSpecialOffers
                         {
                             return false;
                         }
+                    case KindOfSearchElement.FindElementByID:
+                        try
+                        {
+                            element = driver.FindElement(By.Id(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
                     default:
                         return false;
                 }
