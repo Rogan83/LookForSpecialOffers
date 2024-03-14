@@ -1,6 +1,7 @@
 ﻿using HtmlAgilityPack;
 using LookForSpecialOffers.Enums;
 using Microsoft.Extensions.FileSystemGlobbing;
+using Microsoft.Extensions.FileSystemGlobbing.Internal;
 using Microsoft.Extensions.Primitives;
 using OpenQA.Selenium;
 using System;
@@ -33,6 +34,22 @@ namespace LookForSpecialOffers
         {
             string pathMainPage = "https://www.lidl.de/store";
             bool isNewOffersAvailable = false;                  // Sind neue Angebote vom Penny vorhanden? Falls ja, dann soll eine E-Mail verschickt werden
+
+
+            //test
+            //string pattern = @"(\d+\,\d+)|(\d+\.\d+)|(\.\d+)|(\d+)";
+            ////string pattern = @"(\d+)(?!\d)";
+            //string input = "10,58; leterasdf 3.48";
+            //Regex regex = new Regex(pattern);
+
+            //// Übereinstimmungen finden
+            //MatchCollection matches = regex.Matches(input);
+
+            
+            //string amountText = matches[0].Value;
+            ///test ende
+
+
 
             driver.Navigate().GoToUrl(pathMainPage);
 
@@ -213,7 +230,7 @@ namespace LookForSpecialOffers
                     string[] parts = input.Split('=');
 
                     // Überprüfen, ob der Eingabetext das erwartete Format hat
-                    if (parts.Length == 2)
+                    //if (parts.Length == 2)
                     {
                         // Extrahieren Sie den Teil nach dem "="-Zeichen und entfernen Sie unnötige Leerzeichen
                         price = ExtractValue(parts[1].Trim());
@@ -221,30 +238,35 @@ namespace LookForSpecialOffers
                         return price;
 
                     }
-                    else
-                    {
-                        Debug.WriteLine("ungültiges input format");
-                        return price;          // in diesen Fall ist prices jeweils leer
-                    }
+                    //else
+                    //{
+                    //    Debug.WriteLine("ungültiges input format");
+                    //    return price;          // in diesen Fall ist prices jeweils leer
+                    //}
                 }
 
                 static double ExtractValue(string input)
                 {
+                    //Problem: Wenn ein / im input vor kommt, dann folgen mehrere kg preise
+                    // in diesen Fall wird nur der erste berücksichtigt. Später soll aber jeder von diesen
+                    //Preisen in eine extra Spalte gespeichert werden.
+
                     // Muster, um Zahlen zu extrahieren
+                    //extrahiert alle zahlen im format mit folgenden Formatbeispielen
+                    //2,4   6.4  .4   6
                     string pattern = @"(\d+\,\d+)|(\d+\.\d+)|(\.\d+)|(\d+)";
 
                     // Regulären Ausdruck erstellen
                     Regex regex = new Regex(pattern);
 
                     // Übereinstimmungen finden
-                    MatchCollection matches = regex.Matches(input);
+                    //MatchCollection matches = regex.Matches(input);
+                    Match match = regex.Match(input);
 
-                    StringBuilder sb = new StringBuilder();
-                    foreach (Match match in matches)
-                    {
-                        sb.Append(match.Value);
-                    }
-                    string amountText = sb.ToString().Replace(",",".");
+                    string amountText = string.Empty;
+
+                    if (match.Success) 
+                        amountText = match.Value.Replace(",",".");
 
                     double amount = 0;
 
