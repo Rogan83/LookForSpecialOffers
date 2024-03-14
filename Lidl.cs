@@ -1,5 +1,6 @@
 ﻿using HtmlAgilityPack;
 using LookForSpecialOffers.Enums;
+using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.Primitives;
 using OpenQA.Selenium;
 using System;
@@ -10,11 +11,13 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 
 //Bug:
-// Die Produkte von der Kategorie Deluxe wurden nicht mit hinzugefügt
+// - Die Produkte von der Kategorie Deluxe wurden nicht mit hinzugefügt
+// - Der Preis pro Kg hat noch teilweise ein "-" vorne dran. Diese Zeichen müssen noch entfernt werden.
 
 //Todo:
 // - Der Beginn von jeden Artikel und ob der Artikel nur mit der App verfügbar ist, wenn möglich noch in die Tabelle speichern
@@ -30,7 +33,6 @@ namespace LookForSpecialOffers
         {
             string pathMainPage = "https://www.lidl.de/store";
             bool isNewOffersAvailable = false;                  // Sind neue Angebote vom Penny vorhanden? Falls ja, dann soll eine E-Mail verschickt werden
-
 
             driver.Navigate().GoToUrl(pathMainPage);
 
@@ -67,13 +69,20 @@ namespace LookForSpecialOffers
                     foreach (var li in list)
                     {
                         if (li == null) { continue; }
-                        var aTag = li.FindElement(By.XPath((".//a")));
+                        //verursachte eine Fehlermeldung (vermutlich wurde keine elemente mit dem Tag "a" gefunden, aber genau weiß ich es nicht, da diese nur selten auftaucht
+                        //var aTag = li.FindElement(By.XPath((".//a")));
+                        var aTag = (IWebElement?)WebScraperHelper.Find(li, driver, ".//a", KindOfSearchElement.FindElementByXPath,500,3);
 
                         string url = string.Empty;
                         if (aTag != null)
                         {
                             url = aTag.GetAttribute("href");
                         }
+                        else
+                        {
+                            Console.WriteLine("Das HTML Element 'a' wurde nicht gefunden");
+                        }
+
                         if (!string.IsNullOrEmpty(url))
                         {
                             driver.Navigate().GoToUrl(url);
@@ -92,8 +101,7 @@ namespace LookForSpecialOffers
             #region verschachtelte Methode(n)
             static void ExtractSubPage(IWebDriver driver, string url)
             {
-
-                WebScraperHelper.ScrollToBottom(driver, 50, 20, 1000);  
+                WebScraperHelper.ScrollToBottom(driver, 50, 30, 1000);  
 
                 IWebElement? mainDivContainer = null;       //Hauptcontainer
 
@@ -167,13 +175,14 @@ namespace LookForSpecialOffers
                             string articleName = WebUtility.HtmlDecode(divProduct.FindElement(By.XPath
                                 (".//a")).GetAttribute("aria-label"));
 
-                            double oldPrice = 0, newPrice = 0;
+                            double oldPrice = 0, newPrice = 0, articlePricePerKg;
                             bool isPriceInCent = false;
 
-                            string oldPriceText = string.Empty, newPriceText = string.Empty;
+                            string oldPriceText = string.Empty, newPriceText = string.Empty, articlePricePerKgText = string.Empty;
 
-                            newPrice = ConvertPrice(divProduct, ".m-price__price.m-price__price--small", newPriceText);
-                            oldPrice = ConvertPrice(divProduct, ".strikethrough.m-price__rrp", oldPriceText);
+                            newPrice            = ConvertPrice(divProduct, ".m-price__price.m-price__price--small", newPriceText);
+                            oldPrice            = ConvertPrice(divProduct, ".strikethrough.m-price__rrp", oldPriceText);
+                            articlePricePerKg   = ConvertPrice(divProduct, ".price-footer", articlePricePerKgText, newPrice, true);
 
                             string description = string.Empty;
                             try 
@@ -185,21 +194,21 @@ namespace LookForSpecialOffers
                                 Console.WriteLine("Beschreibung nicht vorhanden");
                             }
 
-                            string articlePricePerKgText = divProduct.FindElement(By.CssSelector(".price-footer")).Text;
-                            double articlePricePerKg = 0;
-                            if (!double.TryParse(ExtractPrice(articlePricePerKgText), CultureInfo.InvariantCulture, out articlePricePerKg))
-                                Console.WriteLine($"folgende Zeichenkette konnte nicht umgewandelt werden: {newPriceText}");
+                            //string articlePricePerKgText = divProduct.FindElement(By.CssSelector(".price-footer")).Text;
+                            //double articlePricePerKg = 0;
+                            //if (!double.TryParse(ExtractPrice(articlePricePerKgText), CultureInfo.InvariantCulture, out articlePricePerKg))
+                            //    Console.WriteLine($"folgende Zeichenkette konnte nicht umgewandelt werden: {newPriceText}");
 
-                            products.Add(new Product(articleName,description,oldPrice,newPrice, articlePricePerKg,0,"",""));
+                            products.Add(new Product(articleName, description, oldPrice,newPrice, articlePricePerKg, 0, string.Empty, string.Empty));
 
                             int i = 0;
                         }
                     }
                 }
 
-                static string ExtractPrice(string input)
+                static double ExtractPrice(string input)
                 {
-                    string price = string.Empty;
+                    double price = 0;
 
                     // Teile den Eingabetext am "="-Zeichen
                     string[] parts = input.Split('=');
@@ -208,7 +217,9 @@ namespace LookForSpecialOffers
                     if (parts.Length == 2)
                     {
                         // Extrahieren Sie den Teil nach dem "="-Zeichen und entfernen Sie unnötige Leerzeichen
-                        return parts[1].Trim();
+                        price = ExtractValue(parts[1].Trim());
+                        
+                        return price;
 
                     }
                     else
@@ -218,32 +229,89 @@ namespace LookForSpecialOffers
                     }
                 }
 
-                static double ConvertPrice(IWebElement divProduct, string cssSelector,  string newPriceText)
+                static double ExtractValue(string input)
+                {
+                    // Muster, um Zahlen zu extrahieren
+                    string pattern = @"(\d+\,\d+)|(\d+\.\d+)|(\.\d+)|(\d+)";
+
+                    // Regulären Ausdruck erstellen
+                    Regex regex = new Regex(pattern);
+
+                    // Übereinstimmungen finden
+                    MatchCollection matches = regex.Matches(input);
+
+                    StringBuilder sb = new StringBuilder();
+                    foreach (Match match in matches)
+                    {
+                        sb.Append(match.Value);
+                    }
+                    string amountText = sb.ToString().Replace(",",".");
+
+                    double amount = 0;
+
+                    if (!double.TryParse(amountText, CultureInfo.InvariantCulture, out amount))
+                    {
+                        Console.WriteLine($"Der Betrag konnte nicht umgewandelt werden: {amountText}");
+                    }
+                    return amount;
+                }
+
+                static double ConvertPrice(IWebElement divProduct, string cssSelector, string priceText, double newPrice = 0, bool isKgPriceText = false)
                 {
                     double price = 0;
                     bool isPriceInCent = false;
                     try
                     {
-                        newPriceText = divProduct.FindElement(By.CssSelector(cssSelector)).Text;
+                        priceText = divProduct.FindElement(By.CssSelector(cssSelector)).Text;
                     }
                     catch
                     {
-                        newPriceText = string.Empty;
+                        priceText = string.Empty;
                     }
-
-                    if (newPriceText.Contains("-") && newPriceText.Contains("."))
+                    
+                    if (isKgPriceText)
                     {
-                        isPriceInCent = true;
-                        newPriceText = newPriceText.Replace("-", " ").Replace(".", " ");
+                        // Wenn das = vorhanden ist, dann steht der Kg Preis dahinter
+                        // (bis jetzt bezieht sich dieser Preis dann auf 1 Kg oder 1 Liter. Falls das nicht der Fall 
+                        // sein sollte, muss hier noch Anpassungen gemacht werden.
+                        if (priceText.Contains("="))
+                        {
+                            price = ExtractPrice(priceText);
+                        }
+                        //Wenn kein = vorhanden ist, dann steht der Preis dort nicht pro Kg oder pro Liter drin
+                        //dann könnte man nachschauen, wie viel das Produkt selbst wiegt, indem die Zahl selbst heraus
+                        // gefiltert wird und dann mit Hilfe vom Stück Preis und dem Gewicht wird dann der Preis pro
+                        // Kg bzw.Liter berechnet. Vorher sollte aber herausgefunden werden, ob die Bezeichnung Kg
+                        // oder "Gramm" (g) drin
+                        else if (priceText.Contains("kg"))
+                        {
+                            double unitAmount = ExtractValue(priceText);
+                            //Wenn keine Zahl gefunden wurde, liegt es wohl daran, dass dort sowas wie 'kg-Preis'
+                            //nur drin steht, was ja bedeutet, dass die Menge 1 Kg sein muss. In diesen Fall wird ja die 
+                            //Zahl 0 zurückgegeben
+                            if (unitAmount == 0)
+                                unitAmount = 1;
+                            price = newPrice / unitAmount;
+                            price = Math.Round(price, 2);
+                        }
                     }
-
-                    if (!double.TryParse(newPriceText, CultureInfo.InvariantCulture, out price))
-                        Console.WriteLine($"folgende Zeichenkette konnte nicht umgewandelt werden: {newPriceText}");
-                    if (isPriceInCent)
+                    else
                     {
-                        price /= 100d;
+                        if (priceText.Contains("-") && priceText.Contains("."))
+                        {
+                            isPriceInCent = true;
+                            priceText = priceText.Replace("-", " ").Replace(".", " ");
+                        }
+
+                        if (!double.TryParse(priceText, CultureInfo.InvariantCulture, out price))
+                            Console.WriteLine($"folgender Preis konnte nicht umgewandelt werden: {priceText}");
+                        if (isPriceInCent)
+                        {
+                            price /= 100d;
+                        }
+                        price = Math.Round(price, 2);
                     }
-                    price = Math.Round(price, 2);
+                    
                     return price;
                 }
             }

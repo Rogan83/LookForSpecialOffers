@@ -59,19 +59,11 @@ namespace LookForSpecialOffers
         {
             ChromeOptions options = new ChromeOptions();
             //options.AddArgument("--headless");              //öffnet die seiten im hintergrund
-
-            //funktioniert leider nicht
-            //string profilePath = @"C:\Users\droth\AppData\Local\Google\Chrome\User Data";
-            //options.AddArguments($"--user-data-dir={profilePath}");
-            //string profilePathFirefox = @"C:\Users\droth\AppData\Local\Mozilla\Firefox\Profiles";
-            //profilePathFirefox = @"C:\Users\droth\AppData\Roaming\Mozilla\Firefox\Profiles\h1iwxt69";
-            //optionsFirefox.AddArguments($"--user-data-dir={profilePathFirefox}");
-            //optionsFirefox.Profile = new FirefoxProfile("h1iwxt69.default");
-
             using (IWebDriver driver = new ChromeDriver(options))
             {
+                driver.Manage().Window.Maximize();
                 string periodheadline = WebScraperHelper.ExtractHeadlineFromExcel(ExcelPath);
-                Penny.ExtractOffers(driver, periodheadline);
+                //Penny.ExtractOffers(driver, periodheadline);
                 Lidl.ExtractOffers(driver, periodheadline);
 
                 WebScraperHelper.excelPackage.Dispose();
