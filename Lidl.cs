@@ -18,10 +18,11 @@ using System.Threading.Tasks;
 
 //Bug:
 // - Die Produkte von der Kategorie Deluxe wurden nicht mit hinzugefügt
-// - Der Preis pro Kg hat noch teilweise ein "-" vorne dran. Diese Zeichen müssen noch entfernt werden.
+// - teilweise werden keine Produkte gefunden
+// - Der Preis von Ariel wird in 2 vers. Kg Preisen unterteilt, weil die Zeichenkette hinter dem = ein / enthält.
 
 //Todo:
-// - Der Beginn von jeden Artikel und ob der Artikel nur mit der App verfügbar ist, wenn möglich noch in die Tabelle speichern
+// - Der Beginn von jeden Artikel und ob der Artikel nur mit der App verfügbar ist, wenn möglich noch in die Tabelle speichern.
 //   Außerdem noch von wann bis wann diese Angebote gültig sind, wenn möglich (Notfalls von Penny übernehmen)
 
 namespace LookForSpecialOffers
@@ -34,22 +35,6 @@ namespace LookForSpecialOffers
         {
             string pathMainPage = "https://www.lidl.de/store";
             bool isNewOffersAvailable = false;                  // Sind neue Angebote vom Penny vorhanden? Falls ja, dann soll eine E-Mail verschickt werden
-
-
-            //test
-            //string pattern = @"(\d+\,\d+)|(\d+\.\d+)|(\.\d+)|(\d+)";
-            ////string pattern = @"(\d+)(?!\d)";
-            //string input = "10,58; leterasdf 3.48";
-            //Regex regex = new Regex(pattern);
-
-            //// Übereinstimmungen finden
-            //MatchCollection matches = regex.Matches(input);
-
-            
-            //string amountText = matches[0].Value;
-            ///test ende
-
-
 
             driver.Navigate().GoToUrl(pathMainPage);
 
@@ -144,10 +129,23 @@ namespace LookForSpecialOffers
                     return; 
                 }
 
-                var sections = mainDivContainer.FindElements(By.XPath
-                    (".//section[contains(@class, 'ATheCampaign__SectionWrapper') " +
+                //Thread.Sleep(100);
+                //ReadOnlyCollection<IWebElement> sections = mainDivContainer.FindElements(By.XPath
+                //    (".//section[contains(@class, 'ATheCampaign__SectionWrapper') " +
+                //    "and contains(@class, 'APageRoot__Section') " +
+                //    "and contains(@class, 'ATheCampaign__SectionWrapper--relative')]"));
+
+                //Console.WriteLine("datentyp von sections: "+sections.GetType());
+                //Console.WriteLine("anzahl: "+sections.Count);
+
+                string searchname = ".//section[contains(@class, 'ATheCampaign__SectionWrapper') " +
                     "and contains(@class, 'APageRoot__Section') " +
-                    "and contains(@class, 'ATheCampaign__SectionWrapper--relative')]"));
+                    "and contains(@class, 'ATheCampaign__SectionWrapper--relative')]";
+
+                ReadOnlyCollection<IWebElement?>? sections = (ReadOnlyCollection<IWebElement?>?)WebScraperHelper.Find(mainDivContainer,
+                    driver, searchname, KindOfSearchElement.FindElementsByXPath, 500, 3);
+
+                if (sections == null) return;
 
                 foreach (var section in sections)
                 {
@@ -178,7 +176,7 @@ namespace LookForSpecialOffers
                         return;
                     }
 
-                    if (list == null) { return; }
+                    if (list == null) { Console.WriteLine("ol element ist leer."); return; }
                     {
                         foreach (var li in list)
                         {
@@ -198,14 +196,28 @@ namespace LookForSpecialOffers
                             string articleName = WebUtility.HtmlDecode(divProduct.FindElement(By.XPath
                                 (".//a")).GetAttribute("aria-label"));
 
-                            double oldPrice = 0, newPrice = 0, articlePricePerKg;
+
+                            //test
+                            if (articleName.ToLower().Contains("ariel"))
+                            {
+                                int i = 0;
+                            }
+
+                            double newPrice = 0, oldPrice = 0;
+                            List<double> articlePricesPerKg;
                             bool isPriceInCent = false;
 
                             string oldPriceText = string.Empty, newPriceText = string.Empty, articlePricePerKgText = string.Empty;
 
-                            newPrice            = ConvertPrice(divProduct, ".m-price__price.m-price__price--small", newPriceText);
-                            oldPrice            = ConvertPrice(divProduct, ".strikethrough.m-price__rrp", oldPriceText);
-                            articlePricePerKg   = ConvertPrice(divProduct, ".price-footer", articlePricePerKgText, newPrice, true);
+                            List<double> temp = ConvertPrices(divProduct, ".m-price__price.m-price__price--small", newPriceText);
+                            if (temp.Count > 0)
+                                newPrice = temp[0];  // Es kommt nur 1 aktueller Preis vor
+
+                            temp = ConvertPrices(divProduct, ".strikethrough.m-price__rrp", oldPriceText);
+                            if (temp.Count > 0)
+                                oldPrice = temp[0];  // Es kommt nur 1 vorheriger Preis vor
+
+                            articlePricesPerKg = ConvertPrices(divProduct, ".price-footer", articlePricePerKgText, newPrice, true);
 
                             string description = string.Empty;
                             try 
@@ -217,69 +229,26 @@ namespace LookForSpecialOffers
                                 Console.WriteLine("Beschreibung nicht vorhanden");
                             }
 
-                            products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, 0, string.Empty, string.Empty));
+                            // Es kann sein, dass keine kg Preise ermittelt bzw. gefunden werden konnten.
+                            if (articlePricesPerKg.Count > 0)
+                            {
+                                foreach (double articlePricePerKg in articlePricesPerKg)
+                                {
+                                    products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, 0, string.Empty, string.Empty));
+                                }
+                            }
+                            else
+                            {
+                                products.Add(new Product(articleName, description, oldPrice, newPrice, 0, 0, string.Empty, string.Empty));
+                            }
+                            
                         }
                     }
                 }
 
-                static double ExtractPrice(string input)
+                static List<double> ConvertPrices(IWebElement divProduct, string cssSelector, string priceText, double newPrice = 0, bool isKgPriceText = false)
                 {
-                    double price = 0;
-
-                    // Teile den Eingabetext am "="-Zeichen
-                    string[] parts = input.Split('=');
-
-                    // Überprüfen, ob der Eingabetext das erwartete Format hat
-                    //if (parts.Length == 2)
-                    {
-                        // Extrahieren Sie den Teil nach dem "="-Zeichen und entfernen Sie unnötige Leerzeichen
-                        price = ExtractValue(parts[1].Trim());
-                        
-                        return price;
-
-                    }
-                    //else
-                    //{
-                    //    Debug.WriteLine("ungültiges input format");
-                    //    return price;          // in diesen Fall ist prices jeweils leer
-                    //}
-                }
-
-                static double ExtractValue(string input)
-                {
-                    //Problem: Wenn ein / im input vor kommt, dann folgen mehrere kg preise
-                    // in diesen Fall wird nur der erste berücksichtigt. Später soll aber jeder von diesen
-                    //Preisen in eine extra Spalte gespeichert werden.
-
-                    // Muster, um Zahlen zu extrahieren
-                    //extrahiert alle zahlen im format mit folgenden Formatbeispielen
-                    //2,4   6.4  .4   6
-                    string pattern = @"(\d+\,\d+)|(\d+\.\d+)|(\.\d+)|(\d+)";
-
-                    // Regulären Ausdruck erstellen
-                    Regex regex = new Regex(pattern);
-
-                    // Übereinstimmungen finden
-                    //MatchCollection matches = regex.Matches(input);
-                    Match match = regex.Match(input);
-
-                    string amountText = string.Empty;
-
-                    if (match.Success) 
-                        amountText = match.Value.Replace(",",".");
-
-                    double amount = 0;
-
-                    if (!double.TryParse(amountText, CultureInfo.InvariantCulture, out amount))
-                    {
-                        Console.WriteLine($"Der Betrag konnte nicht umgewandelt werden: {amountText}");
-                    }
-                    return amount;
-                }
-
-                static double ConvertPrice(IWebElement divProduct, string cssSelector, string priceText, double newPrice = 0, bool isKgPriceText = false)
-                {
-                    double price = 0;
+                    List <double> prices = new List<double>();
                     bool isPriceInCent = false;
                     try
                     {
@@ -297,7 +266,7 @@ namespace LookForSpecialOffers
                         // sein sollte, muss hier noch Anpassungen gemacht werden.
                         if (priceText.Contains("="))
                         {
-                            price = ExtractPrice(priceText);
+                            prices = ExtractPricesBehindEqualChar(priceText);
                         }
                         //Wenn kein = vorhanden ist, dann steht der Preis dort nicht pro Kg oder pro Liter drin
                         //dann könnte man nachschauen, wie viel das Produkt selbst wiegt, indem die Zahl selbst heraus
@@ -306,18 +275,25 @@ namespace LookForSpecialOffers
                         // oder "Gramm" (g) drin
                         else if (priceText.Contains("kg"))
                         {
-                            double unitAmount = ExtractValue(priceText);
+                            List<double> unitAmount = ExtractValues(priceText);
                             //Wenn keine Zahl gefunden wurde, liegt es wohl daran, dass dort sowas wie 'kg-Preis'
                             //nur drin steht, was ja bedeutet, dass die Menge 1 Kg sein muss. In diesen Fall wird ja die 
                             //Zahl 0 zurückgegeben
-                            if (unitAmount == 0)
-                                unitAmount = 1;
-                            price = newPrice / unitAmount;
-                            price = Math.Round(price, 2);
+                            //if (unitAmount == 0)
+                            //    unitAmount = 1;
+                            for (int i = 0; i < unitAmount.Count; i++)
+                            {
+                                if (unitAmount[i] == 0)
+                                    unitAmount[i] = 1;
+
+                                prices.Add(Math.Round(newPrice / unitAmount[i], 2));  // die kg Preise bestimmen
+                            }
                         }
                     }
                     else
                     {
+                        double price = 0;
+
                         if (priceText.Contains("-") && priceText.Contains("."))
                         {
                             isPriceInCent = true;
@@ -331,9 +307,81 @@ namespace LookForSpecialOffers
                             price /= 100d;
                         }
                         price = Math.Round(price, 2);
+                        prices.Add(price);
                     }
                     
-                    return price;
+                    return prices;
+
+                    static List<double> ExtractPricesBehindEqualChar(string input)
+                    {
+                        List<double> prices = new List<double>();
+
+                        // Teile den Eingabetext am "="-Zeichen
+                        string[] parts = input.Split('=');
+
+                        // Extrahiert den Teil nach dem ersten vorkommenden "="-Zeichen und wandelt diese in eine oder mehrere Zahlen um
+                        prices = ExtractValues(parts[1].Trim());
+
+                        return prices;
+                    }
+
+
+                    static List<double> ExtractValues(string inputBehindEqualChar)
+                    {
+                        List<double> amounts = new List<double>();
+
+                        // Muster, um Zahlen zu extrahieren
+                        //extrahiert alle zahlen im format mit folgenden Formatbeispielen
+                        //2,4   6.4  .4   6
+                        string pattern = @"(\d+\,\d+)|(\d+\.\d+)|(\.\d+)|(\d+)";
+                        // Regulären Ausdruck erstellen
+                        Regex regex = new Regex(pattern);
+
+                        // Wenn ein / im input vor kommt, dann folgen mehrere kg preise
+                        // Diese sollen alle einzeln extrahiert werden und in seperaten 
+                        // Zeilen in die Tabelle jeweils eingetragen werden.
+
+                        int numberOfPrices = 0;
+
+                        if (inputBehindEqualChar.Contains("/") && !inputBehindEqualChar.Contains("="))
+                        {
+                            numberOfPrices = inputBehindEqualChar.Count(c => c == '/');
+                            MatchCollection matches = regex.Matches(inputBehindEqualChar);
+
+                            foreach (Match match in matches)
+                            {
+                                double amount = 0;
+                                if (match.Success)
+                                {
+                                    if (!double.TryParse(match.Value, CultureInfo.InvariantCulture, out amount))
+                                    {
+                                        Console.WriteLine($"Der extrahierte Wert: {match.Value} konnte nicht als Zahl umgewandelt werden");
+                                    }
+                                }
+                                amounts.Add(amount);
+                            }
+                        }
+                        else
+                        {
+                            // Übereinstimmungen finden
+                            
+                            Match match = regex.Match(inputBehindEqualChar);
+
+                            string amountText = string.Empty;
+
+                            if (match.Success)
+                                amountText = match.Value.Replace(",", ".");
+
+                            double amount = 0;
+
+                            if (!double.TryParse(amountText, CultureInfo.InvariantCulture, out amount))
+                            {
+                                Console.WriteLine($"Der Betrag konnte nicht umgewandelt werden: {amountText}");
+                            }
+                            amounts.Add(amount);
+                        }
+                        return amounts;
+                    }
                 }
             }
             #endregion

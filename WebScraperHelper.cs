@@ -327,6 +327,17 @@ namespace LookForSpecialOffers
                         {
                             return false;
                         }
+                    case KindOfSearchElement.FindElementsByXPath:
+                        try
+                        {
+                            element = iWebElement.FindElements(By.XPath(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
                     default:
                         return false;
                 }
