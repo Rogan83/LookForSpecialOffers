@@ -12,9 +12,13 @@ namespace LookForSpecialOffers.Enums
         FindElementByCssSelector,
         FindElementsByCssSelector,
         FindElementByClassName,
+        FindElementsByClassName,
         FindElementByXPath,
         FindElementsByXPath,
         FindElementByID,
+        FindElementsByID,
+        FindElementByTagName,
+        FindElementsByTagName,
         SelectSingleNode,
         SelectNodes
     }

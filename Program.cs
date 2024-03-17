@@ -63,8 +63,8 @@ namespace LookForSpecialOffers
             {
                 driver.Manage().Window.Maximize();
                 string periodheadline = WebScraperHelper.ExtractHeadlineFromExcel(ExcelPath);
-                //Penny.ExtractOffers(driver, periodheadline);
-                Lidl.ExtractOffers(driver, periodheadline);
+                Penny.ExtractOffers(driver, periodheadline);
+                //Lidl.ExtractOffers(driver, periodheadline);
 
                 WebScraperHelper.excelPackage.Dispose();
 
@@ -76,7 +76,7 @@ namespace LookForSpecialOffers
         static void GoToOffersPage(IWebDriver driver, string pathMainPage)
         {
             string searchName = "//div[contains(@class, 'site-header__wrapper')]";      //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
-            var siteHeaderWrapperNode = (HtmlNode?)WebScraperHelper.Find(driver, searchName, KindOfSearchElement.SelectSingleNode);  //Sucht solange nach diesen Element, bis es erschienen ist.
+            var siteHeaderWrapperNode = (HtmlNode?)WebScraperHelper.Searching(driver, searchName, KindOfSearchElement.SelectSingleNode);  //Sucht solange nach diesen Element, bis es erschienen ist.
             if (siteHeaderWrapperNode != null)
             {
                 // XPath-Ausdruck, um das erste a-Element im ersten li-Element mit der angegebenen Klasse zu finden

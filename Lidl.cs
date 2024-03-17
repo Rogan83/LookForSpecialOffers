@@ -14,11 +14,12 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using static LookForSpecialOffers.WebScraperHelper;
 
 
 //Bug:
 // - Die Produkte von der Kategorie Deluxe wurden nicht mit hinzugefügt
-// - teilweise werden keine Produkte gefunden
+// - Die liste mit den einzelnen Produkten ist teilweise leer und teilweise hat sie elemente, ka. wieso. 
 // - Der Preis von Ariel wird in 2 vers. Kg Preisen unterteilt, weil die Zeichenkette hinter dem = ein / enthält.
 
 //Todo:
@@ -40,7 +41,7 @@ namespace LookForSpecialOffers
 
             //driver.FindElement(By.Id("onetrust-accept-btn-handler"));
             //akzeptiere den Cookie Button
-            var cookieAcceptBtn = (IWebElement?)WebScraperHelper.Find(driver, "onetrust-accept-btn-handler", KindOfSearchElement.FindElementByID);
+            var cookieAcceptBtn = (IWebElement?)Searching(driver, "onetrust-accept-btn-handler", KindOfSearchElement.FindElementByID);
             cookieAcceptBtn?.Click();
 
             // Gehe zu jeder Unterseite ...
@@ -48,7 +49,7 @@ namespace LookForSpecialOffers
 
             try
             {
-                mainDivContainer = (IWebElement?)WebScraperHelper.Find(driver, "//div[@class = 'AHeroStageItems']",
+                mainDivContainer = (IWebElement?)Searching(driver, "//div[@class = 'AHeroStageItems']",
                     KindOfSearchElement.FindElementByXPath,500,3);  //Sucht solange nach diesen Element, bis es erschienen ist.
             }
             catch (Exception ex)
@@ -61,7 +62,9 @@ namespace LookForSpecialOffers
                 ReadOnlyCollection<IWebElement?>? list = null;
                 try
                 {
-                    list = (mainDivContainer.FindElement(By.XPath(".//ol"))).FindElements(By.TagName("li"));
+                    //list = (mainDivContainer.FindElement(By.XPath(".//ol"))).FindElements(By.TagName("li"));
+                    IWebElement? ol = (IWebElement?)Searching(mainDivContainer, driver, ".//ol", KindOfSearchElement.FindElementByXPath, 500, 3);
+                    list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li", KindOfSearchElement.FindElementsByTagName); 
                 }
                 catch (Exception ex)
                 {
@@ -69,7 +72,7 @@ namespace LookForSpecialOffers
                     return;
                 }
 
-                Console.WriteLine("count: "  + list.Count);
+                Console.WriteLine("anzahl Unterseiten: "  + list?.Count);
 
                 if (list == null) { return; }
                 {
@@ -78,7 +81,7 @@ namespace LookForSpecialOffers
                         if (li == null) { continue; }
                         //verursachte eine Fehlermeldung (vermutlich wurde keine elemente mit dem Tag "a" gefunden, aber genau weiß ich es nicht, da diese nur selten auftaucht
                         //var aTag = li.FindElement(By.XPath((".//a")));
-                        var aTag = (IWebElement?)WebScraperHelper.Find(li, driver, ".//a", KindOfSearchElement.FindElementByXPath,500,3);
+                        var aTag = (IWebElement?)Searching(li, driver, ".//a", KindOfSearchElement.FindElementByXPath,500,3);
 
                         string url = string.Empty;
                         if (aTag != null)
@@ -108,15 +111,15 @@ namespace LookForSpecialOffers
             #region verschachtelte Methode(n)
             static void ExtractSubPage(IWebDriver driver, string url)
             {
-                WebScraperHelper.ScrollToBottom(driver, 50, 30, 1000);
+                ScrollToBottom(driver, 50, 30, 1000);
                 ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
 
                 IWebElement? mainDivContainer = null;       //Hauptcontainer
 
                 try
                 {
-                    mainDivContainer = (IWebElement?)WebScraperHelper.Find(driver, "//div[@class = 'ATheCampaign__Page']",
-                        KindOfSearchElement.FindElementByXPath);  //Sucht solange nach diesen Element, bis es erschienen ist.
+                    mainDivContainer = (IWebElement?)Searching(driver, "//div[@class = 'ATheCampaign__Page']",
+                        KindOfSearchElement.FindElementByXPath);  //Sucht solange nach diesen Element, bis es erschienen ist oder die max. Zeit überschritten wurde
                 }
                 catch (Exception ex)
                 {
@@ -142,17 +145,22 @@ namespace LookForSpecialOffers
                     "and contains(@class, 'APageRoot__Section') " +
                     "and contains(@class, 'ATheCampaign__SectionWrapper--relative')]";
 
-                ReadOnlyCollection<IWebElement?>? sections = (ReadOnlyCollection<IWebElement?>?)WebScraperHelper.Find(mainDivContainer,
+                ReadOnlyCollection<IWebElement?>? sections = (ReadOnlyCollection<IWebElement?>?)Searching(mainDivContainer,
                     driver, searchname, KindOfSearchElement.FindElementsByXPath, 500, 3);
+                //Debug
+                Console.WriteLine($"anzahl sections: {sections?.Count()}");
 
                 if (sections == null) return;
 
                 foreach (var section in sections)
                 {
+                    if (section == null) continue;
+
                     IWebElement? ol = null;
                     try
                     {
-                        ol = section.FindElement(By.XPath(".//div//div//ol"));
+                        //ol = section.FindElement(By.XPath(".//div//div//ol"));
+                        ol = (IWebElement?)Searching(section, driver, ".//div//div//ol", KindOfSearchElement.FindElementByXPath);
                     }
                     catch 
                     {
@@ -166,9 +174,25 @@ namespace LookForSpecialOffers
                     }
 
                     ReadOnlyCollection<IWebElement?>? list = null;
+                    Thread.Sleep(5000);
+                    // Bug. Die liste ist teilweise leer und teilweise hat sie elemente, ka. wieso. 
                     try
                     {
-                        list = ol.FindElements(By.CssSelector("li.ACampaignGrid__item.ACampaignGrid__item--product"));
+                        int count = ((ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
+                            KindOfSearchElement.FindElementsByCssSelector)).Count();
+                        while (count == 0)
+                        {
+                            list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
+                            KindOfSearchElement.FindElementsByCssSelector);
+                            count = list != null? list.Count() : 0;
+                            Console.WriteLine("anzahl listen items: " + count);
+                            driver.Navigate().GoToUrl(url);
+                            ScrollToBottom(driver, 200, 40, 1000);
+                            ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
+                            Thread.Sleep(100);
+                        }
+                        //list = ol.FindElements(By.CssSelector("li.ACampaignGrid__item.ACampaignGrid__item--product"));
+                        
                     }
                     catch (Exception ex)
                     {
@@ -176,7 +200,8 @@ namespace LookForSpecialOffers
                         return;
                     }
 
-                    if (list == null) { Console.WriteLine("ol element ist leer."); return; }
+                    if (list == null) { Console.WriteLine("produkt liste ist null."); return; }
+                    else if (list.Count() == 0) { Console.WriteLine("produkt liste ist leer."); return; }
                     {
                         foreach (var li in list)
                         {
@@ -185,10 +210,14 @@ namespace LookForSpecialOffers
                             IWebElement? divProduct = null;
                             try
                             {
-                                divProduct = li.FindElement(By.CssSelector(".product-grid-box.grid-box"));
+                                //divProduct = li.FindElement(By.CssSelector(".product-grid-box.grid-box"));
+                                divProduct = li;
+                                //divProduct = (IWebElement?)Searching(li, driver, ".product-grid-box.grid-box", KindOfSearchElement.FindElementByCssSelector,500,15);
+                                Console.WriteLine("typ vom div: "+divProduct.GetType());
                             }
-                            catch
+                            catch (Exception ex)
                             {
+                                Console.WriteLine($"div container für die Produkte nicht gefunden. Fehlermeldung: {ex}");
                                 return;
                             }
 

@@ -24,7 +24,7 @@ namespace LookForSpecialOffers
         /// Überprüft, ob ein Element interagierbar ist
         /// </summary>
         /// <param name="cookieAcceptBtn"></param>
-        internal static bool CheckIfInteractable(IWebElement cookieAcceptBtn)
+        internal static bool ClickButtonIfPossible(IWebElement cookieAcceptBtn)
         {
             bool isClickable = false;
             int waitTimeInSeconds = 10;
@@ -122,7 +122,7 @@ namespace LookForSpecialOffers
             return product.Contains(substring);
         }
         /// <summary>
-        /// Macht eig. das selbe wie die FindObject Methode, bloß eleganter.
+        /// Versucht, ein bestimmtes Element zu finden und versucht es in gewissen Zeitabständen erneut, falls dieses Element nicht gefunden wird.
         /// </summary>
         /// <param name="driver"></param>
         /// <param name="searchName"></param>
@@ -131,7 +131,7 @@ namespace LookForSpecialOffers
         /// <param name="maxWaitTime"></param>
         /// <returns></returns>
 
-        internal static object? Find(IWebDriver driver, string searchName, KindOfSearchElement searchElement, int pollingIntervalTime = 500, int maxWaitTime = 10)
+        internal static object? Searching(IWebDriver driver, string searchName, KindOfSearchElement searchElement, int pollingIntervalTime = 500, int maxWaitTime = 5)
         {
             object? element = null;
             WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(maxWaitTime))
@@ -140,7 +140,7 @@ namespace LookForSpecialOffers
             };
             wait.IgnoreExceptionTypes(typeof(ElementNotInteractableException));
 
-
+            #region wait until
             var main = wait.Until(d =>
             {
                 switch (searchElement)
@@ -235,11 +235,21 @@ namespace LookForSpecialOffers
                         return false;
                 }
             });
+            #endregion
 
             return element;
         }
-
-        internal static object? Find(IWebElement iWebElement, IWebDriver driver, string searchName, KindOfSearchElement searchElement, int pollingIntervalTime = 500, int maxWaitTime = 10)
+        /// <summary>
+        /// Versucht, ein bestimmtes Element zu finden und versucht es in gewissen Zeitabständen erneut, falls dieses Element nicht gefunden wird.
+        /// </summary>
+        /// <param name="iWebElement"></param>
+        /// <param name="driver"></param>
+        /// <param name="searchName"></param>
+        /// <param name="searchElement"></param>
+        /// <param name="pollingIntervalTime"></param>
+        /// <param name="maxWaitTime"></param>
+        /// <returns></returns>
+        internal static object? Searching(IWebElement iWebElement, IWebDriver driver, string searchName, KindOfSearchElement searchElement, int pollingIntervalTime = 500, int maxWaitTime = 10)
         {
             object? element = null;
             WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(maxWaitTime))
@@ -247,7 +257,13 @@ namespace LookForSpecialOffers
                 PollingInterval = TimeSpan.FromMilliseconds(pollingIntervalTime),
             };
             wait.IgnoreExceptionTypes(typeof(ElementNotInteractableException));
+            element = WaitUntil(iWebElement, driver, searchName, searchElement, element, wait);
 
+            return element;
+        }
+
+        static object? WaitUntil(IWebElement iWebElement, IWebDriver driver, string searchName, KindOfSearchElement searchElement, object? element, WebDriverWait wait)
+        {
             var main = wait.Until(d =>
             {
                 switch (searchElement)
@@ -266,7 +282,6 @@ namespace LookForSpecialOffers
                         {
                             return false;
                         }
-
                     case KindOfSearchElement.SelectNodes:
                         try
                         {
@@ -281,7 +296,6 @@ namespace LookForSpecialOffers
                         {
                             return false;
                         }
-
                     case KindOfSearchElement.FindElementByCssSelector:
                         try
                         {
@@ -293,7 +307,6 @@ namespace LookForSpecialOffers
                         {
                             return false;
                         }
-
                     case KindOfSearchElement.FindElementsByCssSelector:
                         try
                         {
@@ -309,6 +322,17 @@ namespace LookForSpecialOffers
                         try
                         {
                             element = iWebElement.FindElement(By.ClassName(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.FindElementsByClassName:
+                        try
+                        {
+                            element = iWebElement.FindElements(By.ClassName(searchName));
 
                             return element != null;
                         }
@@ -338,15 +362,68 @@ namespace LookForSpecialOffers
                         {
                             return false;
                         }
+                    case KindOfSearchElement.FindElementByTagName:
+                        try
+                        {
+                            element = iWebElement.FindElement(By.TagName(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.FindElementsByTagName:
+                        try
+                        {
+                            element = iWebElement.FindElements(By.TagName(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.FindElementByID:
+                        try
+                        {
+                            element = driver.FindElement(By.Id(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.FindElementsByID:
+                        try
+                        {
+                            element = driver.FindElements(By.Id(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
                     default:
                         return false;
                 }
             });
-
             return element;
         }
 
-        internal static object? Find(ShadowRoot shadowRoot, IWebDriver driver, string searchName, KindOfSearchElement searchElement, int pollingIntervalTime = 500, int maxWaitTime = 10)
+        /// <summary>
+        /// Versucht, ein bestimmtes Element zu finden und versucht es in gewissen Zeitabständen erneut, falls dieses Element nicht gefunden wird.
+        /// </summary>
+        /// <param name="shadowRoot"></param>
+        /// <param name="driver"></param>
+        /// <param name="searchName"></param>
+        /// <param name="searchElement"></param>
+        /// <param name="pollingIntervalTime"></param>
+        /// <param name="maxWaitTime"></param>
+        /// <returns></returns>
+        internal static object? Searching(ShadowRoot shadowRoot, IWebDriver driver, string searchName, KindOfSearchElement searchElement, int pollingIntervalTime = 500, int maxWaitTime = 10)
         {
             object? element = null;
             WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(maxWaitTime))
@@ -360,6 +437,34 @@ namespace LookForSpecialOffers
             {
                 switch (searchElement)
                 {
+                    case KindOfSearchElement.SelectSingleNode:
+                        try
+                        {
+                            HtmlDocument doc = new HtmlDocument();
+                            doc.LoadHtml(driver.PageSource);
+                            if (doc != null)
+                                element = doc.DocumentNode.SelectSingleNode(searchName);
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.SelectNodes:
+                        try
+                        {
+                            HtmlDocument doc = new HtmlDocument();
+                            doc.LoadHtml(driver.PageSource);
+                            if (doc != null)
+                                element = doc.DocumentNode.SelectNodes(searchName);
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
                     case KindOfSearchElement.FindElementByCssSelector:
                         try
                         {
@@ -371,7 +476,6 @@ namespace LookForSpecialOffers
                         {
                             return false;
                         }
-
                     case KindOfSearchElement.FindElementsByCssSelector:
                         try
                         {
@@ -383,13 +487,98 @@ namespace LookForSpecialOffers
                         {
                             return false;
                         }
+                    case KindOfSearchElement.FindElementByClassName:
+                        try
+                        {
+                            element = shadowRoot.FindElement(By.ClassName(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.FindElementsByClassName:
+                        try
+                        {
+                            element = shadowRoot.FindElements(By.ClassName(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.FindElementByXPath:
+                        try
+                        {
+                            element = shadowRoot.FindElement(By.XPath(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.FindElementsByXPath:
+                        try
+                        {
+                            element = shadowRoot.FindElements(By.XPath(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.FindElementByTagName:
+                        try
+                        {
+                            element = shadowRoot.FindElement(By.TagName(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.FindElementsByTagName:
+                        try
+                        {
+                            element = shadowRoot.FindElements(By.TagName(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.FindElementByID:
+                        try
+                        {
+                            element = shadowRoot.FindElement(By.Id(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
+                    case KindOfSearchElement.FindElementsByID:
+                        try
+                        {
+                            element = shadowRoot.FindElements(By.Id(searchName));
+
+                            return element != null;
+                        }
+                        catch (NoSuchElementException)
+                        {
+                            return false;
+                        }
                     default:
                         return false;
                 }
-
-
             });
-
             return element;
         }
 

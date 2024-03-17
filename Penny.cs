@@ -11,6 +11,8 @@ using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
 using LookForSpecialOffers.Enums;
+using System.Collections.ObjectModel;
+using static LookForSpecialOffers.WebScraperHelper;
 
 namespace LookForSpecialOffers
 {
@@ -26,10 +28,10 @@ namespace LookForSpecialOffers
 
             ClickCookieButton(driver);
             EnterZipCode(driver, Program.ZipCode);
-            WebScraperHelper.ScrollToBottom(driver, 50, 20, 1000);         // Es scheint so, dass es wichtig ist, dass man das herunterscrollen in vielen kleinen Steps einzuteilen, wichtig ist
+            ScrollToBottom(driver, 50, 20, 1000);         // Es scheint so, dass es wichtig ist, dass man das herunterscrollen in vielen kleinen Steps einzuteilen, wichtig ist
 
             //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
-            HtmlNode? mainContainer = (HtmlNode?)WebScraperHelper.Find(driver, "//div[contains(@class, 'tabs__content-area')]", KindOfSearchElement.SelectSingleNode);   //Sucht solange nach diesen Element, bis es erschienen ist.
+            HtmlNode? mainContainer = (HtmlNode?)WebScraperHelper.Searching(driver, "//div[contains(@class, 'tabs__content-area')]", KindOfSearchElement.SelectSingleNode);   //Sucht solange nach diesen Element, bis es erschienen ist.
             List<Product> products = new();
 
             if (mainContainer != null)     //Der maincontainer enthält alles relevantes
@@ -61,7 +63,8 @@ namespace LookForSpecialOffers
 
                             var articleName = WebUtility.HtmlDecode(((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText);
 
-                            var articlePricePerKg = ((HtmlNode)info.SelectSingleNode("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
+                            var articlePricePerKg = ((HtmlNode)info.SelectSingleNode
+                                ("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
                             string description = articlePricePerKg.Split('(')[0].Trim();        //extrahiert die Beschreibung 
                             double articlePricePerKg1 = 0;
                             double articlePricePerKg2 = 0;
@@ -227,7 +230,7 @@ namespace LookForSpecialOffers
                 try
                 {
                     //parent = (WebElement)driver.FindElement(By.XPath("//*[@id='usercentrics-root']"));
-                    parent = (IWebElement?)WebScraperHelper.Find(driver, "//*[@id='usercentrics-root']", KindOfSearchElement.FindElementByXPath);
+                    parent = (IWebElement?)WebScraperHelper.Searching(driver, "//*[@id='usercentrics-root']", KindOfSearchElement.FindElementByXPath);
                 }
                 catch (Exception ex)
                 {
@@ -242,9 +245,17 @@ namespace LookForSpecialOffers
                 //var CookieAcceptBtn = shadowRoot.FindElement(By.CssSelector(".sc-dcJsrY.iWikWl"));
 
                 IWebElement? cookieAcceptBtn = null;
+                ReadOnlyCollection<IWebElement?> cookieBtns = null;
                 try
                 {
-                    cookieAcceptBtn = (IWebElement?)WebScraperHelper.Find(shadowRoot, driver, ".sc-dcJsrY.iWikWl", KindOfSearchElement.FindElementByCssSelector);
+                    Thread.Sleep(1000);
+                    //cookieAcceptBtn = (IWebElement?)WebScraperHelper.Searching(shadowRoot, driver, "//button[@data-testid='uc-accept-all-button']", KindOfSearchElement.FindElementsByXPath);
+                    //cookieAcceptBtn = (IWebElement?)WebScraperHelper.Searching(shadowRoot, driver, "//div", KindOfSearchElement.FindElementByXPath);
+                    //cookieAcceptBtn = shadowRoot.FindElement(By.XPath("./div"));
+                    //cookieAcceptBtn = shadowRoot.FindElement(By.CssSelector(".sc-dcJsrY.hCLQdG"));          // der klassenname ändert sich andauernd vom cookie btn. Das muss noch geändert werden.
+                    cookieBtns = shadowRoot.FindElements(By.CssSelector(".sc-dcJsrY"));          // der klassenname ändert sich andauernd vom cookie btn. Das muss noch geändert werden.
+                    //var a = shadowRoot.FindElement(By.CssSelector("./div"));
+                    int i = 1;
                 }
                 catch (Exception ex)
                 {
@@ -252,8 +263,21 @@ namespace LookForSpecialOffers
                     return;
                 }
 
-                if (!WebScraperHelper.CheckIfInteractable(cookieAcceptBtn))
-                    return;
+                //if (!WebScraperHelper.ClickButtonIfPossible(cookieAcceptBtn))
+                //    return;
+                if (cookieBtns == null) { Console.WriteLine("kein Cookie Button gefunden"); return; }
+
+                if (cookieBtns.Count >= 2)
+                {
+                    IWebElement? acceptBtn = cookieBtns[2];
+                    if (acceptBtn == null) { return; }
+
+                    if (!ClickButtonIfPossible(acceptBtn))
+                    {
+                        Console.WriteLine("Das Element kann nicht geklickt werden");
+                        return;
+                    }
+                }
             }
 
 
@@ -262,9 +286,10 @@ namespace LookForSpecialOffers
             {
                 //var ShowSearchForMarketBtn = driver.FindElement(By.ClassName("market-tile__btn-not-selected"));
                 IWebElement? ShowSearchForMarketBtn = null;
+
                 try
                 {
-                    ShowSearchForMarketBtn = (IWebElement?)WebScraperHelper.Find(driver, "market-tile__btn-not-selected", KindOfSearchElement.FindElementByClassName);
+                    ShowSearchForMarketBtn = (IWebElement?)WebScraperHelper.Searching(driver, "market-tile__btn-not-selected", KindOfSearchElement.FindElementByClassName);
                 }
                 catch (Exception ex)
                 {
@@ -293,7 +318,7 @@ namespace LookForSpecialOffers
                 IWebElement? wrapper = null;
                 try
                 {
-                    wrapper = (IWebElement?)WebScraperHelper.Find(driver, "//*[@class='market-modal__wrapper']", KindOfSearchElement.FindElementByXPath);
+                    wrapper = (IWebElement?)WebScraperHelper.Searching(driver, "//*[@class='market-modal__wrapper']", KindOfSearchElement.FindElementByXPath);
                 }
                 catch (Exception ex)
                 {
