@@ -13,6 +13,8 @@ using System.Threading.Tasks;
 using System.Net.Mail;
 using System.Net;
 using LookForSpecialOffers.Enums;
+using OpenQA.Selenium.DevTools.V120.Debugger;
+using System.Runtime.InteropServices;
 
 namespace LookForSpecialOffers
 {
@@ -64,47 +66,86 @@ namespace LookForSpecialOffers
         /// <param name="driver"></param>
         /// <param name="delayPerStep"></param>
         /// <param name="stepsCount"></param>
-        internal static void ScrollToBottom(IWebDriver driver, int delayPerStep = 200, int stepsCount = 10, int delayDetermineScrollHeigth = 500)
+        internal static void ScrollToBottom(IWebDriver driver, int delayPerStep = 50, int scrollStep = 2000, int delayDetermineScrollHeigth = 500)
         {
+            Random rand = new Random();
+
             IJavaScriptExecutor js = (IJavaScriptExecutor)driver;
             long oldScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");
             long newScrollHeight = 0;
             // Als erstes muss die Höhe der Webseite ermittelt werden. Diese verändert sich, während die Webseite Inhalt nach lädt über die Zeit.
             // Es dauert eine Weile, bis die Scrollheight ermittelt wird. Deswegen wird die schleife so lange wiederholt, bis sind die Scrollheight
             // nicht mehr verändert, was bedeuten müsste, dass diese den entgültigen wert ermittelt hat
+            long newPos = 0;
+            bool isDeterminedScrollHeight1Time = false;
             while (true)
             {
-                Thread.Sleep(delayDetermineScrollHeigth);
-                newScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");
+                // Soll nur einmalig ausgeführt werden
+                while (!isDeterminedScrollHeight1Time)
+                {
+                    Thread.Sleep(delayDetermineScrollHeigth);
+                    newScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");
 
+                    if (newScrollHeight == oldScrollHeight)
+                        isDeterminedScrollHeight1Time = true;
+                    else
+                    {
+                        oldScrollHeight = newScrollHeight;
+                    }
+                }
+
+                //Nachdem die Höhe der Seite ermittelt wurde, soll nun Stufenweise die Seite herunter gescrollt werden, damit der Inhalt Stück für Stück
+                //von der Seite nachgeladen werden kann.
+                //long offset = oldScrollHeight / stepsCount;
+                //long distance = newScrollHeight - newPos;           // Die Distanz, die beim Scrollen zurückgelegt werden muss
+
+                //int stepsCount = (int)(distance / scrollStep);
+                //long rest = distance % scrollStep;
+
+                //for (int i = 0; i < stepsCount; i++)
+                while (true)
+                {
+                    int min = 0, max = 0, randomOffset = 0, newScrollStep = 0, newDelayPerStep;
+
+                    min = -(scrollStep / 5);
+                    max = scrollStep / 5;
+                    randomOffset = rand.Next(min, max + 1);
+                    newScrollStep = scrollStep + randomOffset;
+
+                    newPos += newScrollStep;
+
+                    if (newPos > newScrollHeight)
+                    {
+                        newPos = newScrollHeight;
+                        ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, {newPos});");
+                        break;
+                    }
+
+                    // Scrolle stufenweise bis zum Ende der Seite
+                    ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, {newPos});");
+
+
+                    // Warte eine kurze zufällige Zeit, um ein Stück weiter herunter zu scrollen.
+                    min = -(delayPerStep / 2); 
+                    max = delayPerStep / 2;
+                    randomOffset = rand.Next(min, max + 1);
+                    newDelayPerStep = delayPerStep + randomOffset ;
+                    Thread.Sleep(newDelayPerStep); // Wartezeit in Millisekunden anpassen
+                }
+
+                //Erneute Prüfung, ob jetzt eine höhere max. Scrollhöhe ermittelt wurde, die man zurücklegen kann
+                newScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");
                 if (newScrollHeight == oldScrollHeight)
                     break;
                 else
-                {
                     oldScrollHeight = newScrollHeight;
-                }
+
             }
+            //((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, {newPos});");
 
-            //Nachdem die Höhe der Seite ermittelt wurde, soll nun Stufenweise die Seite herunter gescrollt werden, damit der Inhalt Stück für Stück
-            //von der Seite nachgeladen werden kann.
-            long offset = oldScrollHeight / stepsCount;
-            long newPos = 0;
-
-            for (int i = 0; i < stepsCount; i++)
-            {
-                newPos += offset;
-
-                // Scrolle stufenweise bis zum Ende der Seite
-                ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, {newPos});");
-
-                // Warte eine kurze Zeit, um die Seite zu laden
-                Thread.Sleep(delayPerStep); // Wartezeit in Millisekunden anpassen
-            }
             //Scrolle noch den Rest runter
-            newScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");
-            ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, {newScrollHeight});");
-            // Warte eine kurze Zeit, um die Seite zu laden
-            Thread.Sleep(delayPerStep); // Wartezeit in Millisekunden anpassen
+            //newScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");
+            //((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, {newScrollHeight});");
         }
 
         /// <summary>

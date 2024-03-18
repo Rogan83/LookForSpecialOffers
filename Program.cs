@@ -63,8 +63,8 @@ namespace LookForSpecialOffers
             {
                 driver.Manage().Window.Maximize();
                 string periodheadline = WebScraperHelper.ExtractHeadlineFromExcel(ExcelPath);
-                Penny.ExtractOffers(driver, periodheadline);
-                //Lidl.ExtractOffers(driver, periodheadline);
+                //Penny.ExtractOffers(driver, periodheadline);
+                Lidl.ExtractOffers(driver, periodheadline);
 
                 WebScraperHelper.excelPackage.Dispose();
 

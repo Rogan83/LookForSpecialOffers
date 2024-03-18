@@ -28,7 +28,7 @@ namespace LookForSpecialOffers
 
             ClickCookieButton(driver);
             EnterZipCode(driver, Program.ZipCode);
-            ScrollToBottom(driver, 50, 20, 1000);         // Es scheint so, dass es wichtig ist, dass man das herunterscrollen in vielen kleinen Steps einzuteilen, wichtig ist
+            ScrollToBottom(driver, 300, 2000, 500);         // Es scheint so, dass es wichtig ist, dass man das herunterscrollen in vielen kleinen Steps einzuteilen, wichtig ist
 
             //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
             HtmlNode? mainContainer = (HtmlNode?)WebScraperHelper.Searching(driver, "//div[contains(@class, 'tabs__content-area')]", KindOfSearchElement.SelectSingleNode);   //Sucht solange nach diesen Element, bis es erschienen ist.

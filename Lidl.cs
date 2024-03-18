@@ -111,7 +111,7 @@ namespace LookForSpecialOffers
             #region verschachtelte Methode(n)
             static void ExtractSubPage(IWebDriver driver, string url)
             {
-                ScrollToBottom(driver, 50, 30, 1000);
+                ScrollToBottom(driver, 300, 1000, 500);
                 ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
 
                 IWebElement? mainDivContainer = null;       //Hauptcontainer
@@ -178,18 +178,19 @@ namespace LookForSpecialOffers
                     // Bug. Die liste ist teilweise leer und teilweise hat sie elemente, ka. wieso. 
                     try
                     {
-                        int count = ((ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
-                            KindOfSearchElement.FindElementsByCssSelector)).Count();
+                        list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
+                            KindOfSearchElement.FindElementsByCssSelector);
+                        int count = list.Count();
                         while (count == 0)
                         {
-                            list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
-                            KindOfSearchElement.FindElementsByCssSelector);
                             count = list != null? list.Count() : 0;
                             Console.WriteLine("anzahl listen items: " + count);
                             driver.Navigate().GoToUrl(url);
-                            ScrollToBottom(driver, 200, 40, 1000);
+                            ScrollToBottom(driver, 300, 1000, 500);
                             ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
                             Thread.Sleep(100);
+                            list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
+                            KindOfSearchElement.FindElementsByCssSelector);
                         }
                         //list = ol.FindElements(By.CssSelector("li.ACampaignGrid__item.ACampaignGrid__item--product"));
                         
