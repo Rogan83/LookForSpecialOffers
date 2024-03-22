@@ -41,8 +41,8 @@ namespace LookForSpecialOffers
 
             //driver.FindElement(By.Id("onetrust-accept-btn-handler"));
             //akzeptiere den Cookie Button
-            var cookieAcceptBtn = (IWebElement?)Searching(driver, "onetrust-accept-btn-handler", KindOfSearchElement.FindElementByID);
-            cookieAcceptBtn?.Click();
+            //var cookieAcceptBtn = (IWebElement?)Searching(driver, "onetrust-accept-btn-handler", KindOfSearchElement.FindElementByID);
+            //cookieAcceptBtn?.Click();
 
             // Gehe zu jeder Unterseite ...
             IWebElement? mainDivContainer = null;
@@ -174,105 +174,132 @@ namespace LookForSpecialOffers
                     }
 
                     ReadOnlyCollection<IWebElement?>? list = null;
-                    Thread.Sleep(5000);
+                    //Thread.Sleep(500);
                     // Bug. Die liste ist teilweise leer und teilweise hat sie elemente, ka. wieso. 
-                    try
+                    
                     {
                         list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
                             KindOfSearchElement.FindElementsByCssSelector);
                         int count = list.Count();
+                        count = list != null ? list.Count() : 0;
                         while (count == 0)
                         {
                             count = list != null? list.Count() : 0;
                             Console.WriteLine("anzahl listen items: " + count);
                             driver.Navigate().GoToUrl(url);
-                            ScrollToBottom(driver, 300, 1000, 500);
-                            ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
+                            //ScrollToBottom(driver, 300, 1000, 500);
+                            //((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
                             Thread.Sleep(100);
-                            list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
-                            KindOfSearchElement.FindElementsByCssSelector);
+                            //list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
+                            //KindOfSearchElement.FindElementsByCssSelector);
+                            //list = ol.FindElements(By.CssSelector
+                            //    ("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box"));
+                            list = FindListOfProducts("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box");
+                            count = list != null ? list.Count() : 0;
                         }
                         //list = ol.FindElements(By.CssSelector("li.ACampaignGrid__item.ACampaignGrid__item--product"));
-                        
+                        ReadOnlyCollection<IWebElement?>?FindListOfProducts(string name)
+                        {
+                            try
+                            {
+                                // Versuche, das Element zu finden
+                                ReadOnlyCollection<IWebElement?>? elements = ol.FindElements(By.CssSelector("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box"));
+
+                                // Überprüfe, ob die Liste leer ist
+                                if (elements.Count == 0)
+                                {
+                                    // Das Element wurde nicht gefunden, gib null zurück
+                                    return null;
+                                }
+
+                                // Das Element wurde gefunden, gib die Liste der Elemente zurück
+                                return elements;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                // Falls eine NoSuchElementException auftritt, gib null zurück
+                                return null;
+                            }
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Fehler: {ex}");
-                        return;
-                    }
+                    //catch (Exception ex)
+                    //{
+                    //    Console.WriteLine($"Fehler: {ex}");
+                    //    return;
+                    //}
 
                     if (list == null) { Console.WriteLine("produkt liste ist null."); return; }
                     else if (list.Count() == 0) { Console.WriteLine("produkt liste ist leer."); return; }
+
+                    foreach (var li in list)
                     {
-                        foreach (var li in list)
+                        if (li == null) { continue; }
+
+                        IWebElement? divProduct = null;
+                        try
                         {
-                            if (li == null) { continue; }
-
-                            IWebElement? divProduct = null;
-                            try
-                            {
-                                //divProduct = li.FindElement(By.CssSelector(".product-grid-box.grid-box"));
-                                divProduct = li;
-                                //divProduct = (IWebElement?)Searching(li, driver, ".product-grid-box.grid-box", KindOfSearchElement.FindElementByCssSelector,500,15);
-                                Console.WriteLine("typ vom div: "+divProduct.GetType());
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"div container für die Produkte nicht gefunden. Fehlermeldung: {ex}");
-                                return;
-                            }
-
-                            // Extrahiere alle Informationen
-                            string articleName = WebUtility.HtmlDecode(divProduct.FindElement(By.XPath
-                                (".//a")).GetAttribute("aria-label"));
-
-
-                            //test
-                            if (articleName.ToLower().Contains("ariel"))
-                            {
-                                int i = 0;
-                            }
-
-                            double newPrice = 0, oldPrice = 0;
-                            List<double> articlePricesPerKg;
-                            bool isPriceInCent = false;
-
-                            string oldPriceText = string.Empty, newPriceText = string.Empty, articlePricePerKgText = string.Empty;
-
-                            List<double> temp = ConvertPrices(divProduct, ".m-price__price.m-price__price--small", newPriceText);
-                            if (temp.Count > 0)
-                                newPrice = temp[0];  // Es kommt nur 1 aktueller Preis vor
-
-                            temp = ConvertPrices(divProduct, ".strikethrough.m-price__rrp", oldPriceText);
-                            if (temp.Count > 0)
-                                oldPrice = temp[0];  // Es kommt nur 1 vorheriger Preis vor
-
-                            articlePricesPerKg = ConvertPrices(divProduct, ".price-footer", articlePricePerKgText, newPrice, true);
-
-                            string description = string.Empty;
-                            try 
-                            {
-                                description = divProduct.FindElement(By.CssSelector(".product-grid-box__amount")).Text.Trim();
-                            }
-                            catch
-                            {
-                                Console.WriteLine("Beschreibung nicht vorhanden");
-                            }
-
-                            // Es kann sein, dass keine kg Preise ermittelt bzw. gefunden werden konnten.
-                            if (articlePricesPerKg.Count > 0)
-                            {
-                                foreach (double articlePricePerKg in articlePricesPerKg)
-                                {
-                                    products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, 0, string.Empty, string.Empty));
-                                }
-                            }
-                            else
-                            {
-                                products.Add(new Product(articleName, description, oldPrice, newPrice, 0, 0, string.Empty, string.Empty));
-                            }
-                            
+                            //divProduct = li.FindElement(By.CssSelector(".product-grid-box.grid-box"));
+                            divProduct = li;
+                            //divProduct = (IWebElement?)Searching(li, driver, ".product-grid-box.grid-box", KindOfSearchElement.FindElementByCssSelector,500,15);
+                            Console.WriteLine("typ vom div: "+divProduct.GetType());
                         }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"div container für die Produkte nicht gefunden. Fehlermeldung: {ex}");
+                            return;
+                        }
+
+                        // Extrahiere alle Informationen
+                        string articleName = WebUtility.HtmlDecode(divProduct.FindElement(By.XPath
+                            (".//a")).GetAttribute("aria-label"));
+
+
+                        //test
+                        if (articleName.ToLower().Contains("dash"))
+                        {
+                            int test = 0;
+                        }
+                        ///
+
+                        double newPrice = 0, oldPrice = 0;
+                        List<double> articlePricesPerKg;
+                        bool isPriceInCent = false;
+
+                        string oldPriceText = string.Empty, newPriceText = string.Empty, articlePricePerKgText = string.Empty;
+
+                        List<double> temp = ConvertPrices(divProduct, ".m-price__price.m-price__price--small", newPriceText);
+                        if (temp.Count > 0)
+                            newPrice = temp[0];  // Es kommt nur 1 aktueller Preis vor
+
+                        temp = ConvertPrices(divProduct, ".strikethrough.m-price__rrp", oldPriceText);
+                        if (temp.Count > 0)
+                            oldPrice = temp[0];  // Es kommt nur 1 vorheriger Preis vor
+
+                        articlePricesPerKg = ConvertPrices(divProduct, ".price-footer", articlePricePerKgText, newPrice, true);
+
+                        string description = string.Empty;
+                        try 
+                        {
+                            description = divProduct.FindElement(By.CssSelector(".product-grid-box__amount")).Text.Trim();
+                        }
+                        catch
+                        {
+                            Console.WriteLine("Beschreibung nicht vorhanden");
+                        }
+
+                        // Es kann sein, dass keine kg Preise ermittelt bzw. gefunden werden konnten.
+                        if (articlePricesPerKg.Count > 0)
+                        {
+                            foreach (double articlePricePerKg in articlePricesPerKg)
+                            {
+                                products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, 0, string.Empty, string.Empty));
+                            }
+                        }
+                        else
+                        {
+                            products.Add(new Product(articleName, description, oldPrice, newPrice, 0, 0, string.Empty, string.Empty));
+                        }
+                            
                     }
                 }
 
@@ -303,14 +330,12 @@ namespace LookForSpecialOffers
                         // gefiltert wird und dann mit Hilfe vom Stück Preis und dem Gewicht wird dann der Preis pro
                         // Kg bzw.Liter berechnet. Vorher sollte aber herausgefunden werden, ob die Bezeichnung Kg
                         // oder "Gramm" (g) drin
-                        else if (priceText.Contains("kg"))
+                        else if (priceText.Contains("kg") || (priceText.ToLower().Contains("l") && priceText.ToLower().Contains("je")))
                         {
-                            List<double> unitAmount = ExtractValues(priceText);
+                            List<double> unitAmount = ExtractPricesOrValues(priceText);
                             //Wenn keine Zahl gefunden wurde, liegt es wohl daran, dass dort sowas wie 'kg-Preis'
                             //nur drin steht, was ja bedeutet, dass die Menge 1 Kg sein muss. In diesen Fall wird ja die 
                             //Zahl 0 zurückgegeben
-                            //if (unitAmount == 0)
-                            //    unitAmount = 1;
                             for (int i = 0; i < unitAmount.Count; i++)
                             {
                                 if (unitAmount[i] == 0)
@@ -347,16 +372,21 @@ namespace LookForSpecialOffers
                         List<double> prices = new List<double>();
 
                         // Teile den Eingabetext am "="-Zeichen
-                        string[] parts = input.Split('=');
+                        int index = input.IndexOf("=");
+                        string textBehindEqualChar = string.Empty;
+                        if (index != -1) // Überprüfen, ob das = gefunden wurde
+                        {
+                            textBehindEqualChar = input.Substring(index + 1); // Den Rest ab der Position des ersten = extrahieren
+                        }
 
                         // Extrahiert den Teil nach dem ersten vorkommenden "="-Zeichen und wandelt diese in eine oder mehrere Zahlen um
-                        prices = ExtractValues(parts[1].Trim());
+                        prices = ExtractPricesOrValues(textBehindEqualChar);
 
                         return prices;
                     }
 
 
-                    static List<double> ExtractValues(string inputBehindEqualChar)
+                    static List<double> ExtractPricesOrValues(string input)
                     {
                         List<double> amounts = new List<double>();
 
@@ -367,16 +397,14 @@ namespace LookForSpecialOffers
                         // Regulären Ausdruck erstellen
                         Regex regex = new Regex(pattern);
 
-                        // Wenn ein / im input vor kommt, dann folgen mehrere kg preise
+                        // Wenn ein / im input vor kommt, aber kein =, dann folgen mehrere kg preise
                         // Diese sollen alle einzeln extrahiert werden und in seperaten 
                         // Zeilen in die Tabelle jeweils eingetragen werden.
-
                         int numberOfPrices = 0;
-
-                        if (inputBehindEqualChar.Contains("/") && !inputBehindEqualChar.Contains("="))
+                        if (input.Contains("/") && !input.Contains("="))
                         {
-                            numberOfPrices = inputBehindEqualChar.Count(c => c == '/');
-                            MatchCollection matches = regex.Matches(inputBehindEqualChar);
+                            numberOfPrices = input.Count(c => c == '/');
+                            MatchCollection matches = regex.Matches(input);
 
                             foreach (Match match in matches)
                             {
@@ -391,11 +419,12 @@ namespace LookForSpecialOffers
                                 amounts.Add(amount);
                             }
                         }
+                        //ansonsten müsste nur ein relevanter Preis drin stehen, den man einzeln extrahieren muss
                         else
                         {
                             // Übereinstimmungen finden
                             
-                            Match match = regex.Match(inputBehindEqualChar);
+                            Match match = regex.Match(input);
 
                             string amountText = string.Empty;
 
