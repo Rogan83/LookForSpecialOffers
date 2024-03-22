@@ -31,10 +31,10 @@ namespace LookForSpecialOffers
     internal class Lidl
     {
         static List<Product> products = new();
-        
+        static string pathMainPage = "https://www.lidl.de/store";
         internal static void ExtractOffers(IWebDriver driver, string oldPeriodHeadline)
         {
-            string pathMainPage = "https://www.lidl.de/store";
+            
             bool isNewOffersAvailable = false;                  // Sind neue Angebote vom Penny vorhanden? Falls ja, dann soll eine E-Mail verschickt werden
 
             driver.Navigate().GoToUrl(pathMainPage);
@@ -76,12 +76,14 @@ namespace LookForSpecialOffers
 
                 if (list == null) { return; }
                 {
-                    foreach (var li in list)
+                    //foreach (var li in list)
+                    for (int page = 0; page < list.Count; page++)
                     {
-                        if (li == null) { continue; }
+                        Console.WriteLine("Seitennummer: " + page);
+                        if (list[page] == null) { continue; }
                         //verursachte eine Fehlermeldung (vermutlich wurde keine elemente mit dem Tag "a" gefunden, aber genau weiß ich es nicht, da diese nur selten auftaucht
                         //var aTag = li.FindElement(By.XPath((".//a")));
-                        var aTag = (IWebElement?)Searching(li, driver, ".//a", KindOfSearchElement.FindElementByXPath,500,3);
+                        var aTag = (IWebElement?)Searching(list[page], driver, ".//a", KindOfSearchElement.FindElementByXPath,500,3);
 
                         string url = string.Empty;
                         if (aTag != null)
@@ -112,7 +114,7 @@ namespace LookForSpecialOffers
             static void ExtractSubPage(IWebDriver driver, string url)
             {
                 ScrollToBottom(driver, 300, 1000, 500);
-                ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
+                //((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
 
                 IWebElement? mainDivContainer = null;       //Hauptcontainer
 
@@ -180,22 +182,34 @@ namespace LookForSpecialOffers
                     {
                         list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
                             KindOfSearchElement.FindElementsByCssSelector);
-                        int count = list.Count();
-                        count = list != null ? list.Count() : 0;
-                        while (count == 0)
+                        int listAmount = list.Count();
+                        listAmount = list != null ? list.Count() : 0;
+                        int count = 0;
+                        int maxCount = 20;
+                        while (listAmount == 0)
                         {
-                            count = list != null? list.Count() : 0;
-                            Console.WriteLine("anzahl listen items: " + count);
+                            if (count >= maxCount)
+                            {
+                                Console.WriteLine($"Es wurden nach {count} erneuten Laden der Seite keine Listen Elemente gefunden!");
+                                break;
+                            }
+                            count++;
+
+                            listAmount = list != null? list.Count() : 0;
+                            Console.WriteLine("anzahl listen items: " + listAmount);
+
+                            driver.Navigate().GoToUrl(pathMainPage);
+                            Thread.Sleep(100);
                             driver.Navigate().GoToUrl(url);
-                            //ScrollToBottom(driver, 300, 1000, 500);
-                            //((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
+                            ScrollToBottom(driver, 300, 1000, 500);
+                            ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
                             Thread.Sleep(100);
                             //list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
                             //KindOfSearchElement.FindElementsByCssSelector);
                             //list = ol.FindElements(By.CssSelector
                             //    ("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box"));
                             list = FindListOfProducts("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box");
-                            count = list != null ? list.Count() : 0;
+                            listAmount = list != null ? list.Count() : 0;
                         }
                         //list = ol.FindElements(By.CssSelector("li.ACampaignGrid__item.ACampaignGrid__item--product"));
                         ReadOnlyCollection<IWebElement?>?FindListOfProducts(string name)
@@ -215,7 +229,7 @@ namespace LookForSpecialOffers
                                 // Das Element wurde gefunden, gib die Liste der Elemente zurück
                                 return elements;
                             }
-                            catch (NoSuchElementException)
+                            catch 
                             {
                                 // Falls eine NoSuchElementException auftritt, gib null zurück
                                 return null;
@@ -292,12 +306,12 @@ namespace LookForSpecialOffers
                         {
                             foreach (double articlePricePerKg in articlePricesPerKg)
                             {
-                                products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, 0, string.Empty, string.Empty));
+                                products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, string.Empty, string.Empty));
                             }
                         }
                         else
                         {
-                            products.Add(new Product(articleName, description, oldPrice, newPrice, 0, 0, string.Empty, string.Empty));
+                            products.Add(new Product(articleName, description, oldPrice, newPrice, 0, string.Empty, string.Empty));
                         }
                             
                     }
@@ -320,8 +334,8 @@ namespace LookForSpecialOffers
                     {
                         // Wenn das = vorhanden ist, dann steht der Kg Preis dahinter
                         // (bis jetzt bezieht sich dieser Preis dann auf 1 Kg oder 1 Liter. Falls das nicht der Fall 
-                        // sein sollte, muss hier noch Anpassungen gemacht werden.
-                        if (priceText.Contains("="))
+                        // sein sollte, muss hier noch Anpassungen gemacht werden).
+                        if (priceText.Contains("=") && (priceText.ToLower().Contains("l") || priceText.ToLower().Contains("kg")))
                         {
                             prices = ExtractPricesBehindEqualChar(priceText);
                         }
@@ -356,7 +370,9 @@ namespace LookForSpecialOffers
                         }
 
                         if (!double.TryParse(priceText, CultureInfo.InvariantCulture, out price))
-                            Console.WriteLine($"folgender Preis konnte nicht umgewandelt werden: {priceText}");
+                        {
+                            //Console.WriteLine($"folgender Preis konnte nicht umgewandelt werden: {priceText}");
+                        }
                         if (isPriceInCent)
                         {
                             price /= 100d;

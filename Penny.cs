@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using LookForSpecialOffers.Enums;
 using System.Collections.ObjectModel;
 using static LookForSpecialOffers.WebScraperHelper;
+using System.Text.RegularExpressions;
 
 namespace LookForSpecialOffers
 {
@@ -61,54 +62,52 @@ namespace LookForSpecialOffers
                             var info = item.SelectSingleNode("./article//div[@class='offer-tile__info-container']");
                             if (info == null) { continue; }
 
-                            var articleName = WebUtility.HtmlDecode(((HtmlNode)info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']")).InnerText);
+                            HtmlNode articleNode = info.SelectSingleNode("./h4[@class= 'tile__hdln offer-tile__headline']//a[@class= 'tile__link--cover']");
+                            string articleName = string.Empty;
+                            if (articleNode != null)
+                                articleName = WebUtility.HtmlDecode(articleNode.InnerText).Replace("*"," ");
 
-                            var articlePricePerKg = ((HtmlNode)info.SelectSingleNode
-                                ("./div[@class='offer-tile__unit-price ellipsis']")).InnerText;
-                            string description = articlePricePerKg.Split('(')[0].Trim();        //extrahiert die Beschreibung 
-                            double articlePricePerKg1 = 0;
-                            double articlePricePerKg2 = 0;
+                            var articlePricesPerKgNode = ((HtmlNode)info.SelectSingleNode
+                                ("./div[@class='offer-tile__unit-price ellipsis']"));
+                            string articlePricesPerKg = string.Empty;
+                            if (articlePricesPerKgNode != null)
+                                articlePricesPerKg = articlePricesPerKgNode.InnerText;
 
-                            if (articlePricePerKg != null)
-                            {
-                                var price1 = ExtractPrices(articlePricePerKg)[0];
-                                if (price1 != null)
-                                {
-                                    articlePricePerKg1 = Math.Round(double.Parse(price1, CultureInfo.InvariantCulture), 2);
-                                }
-                                var price2 = ExtractPrices(articlePricePerKg)[1];
-                                if (price2 != null)
-                                {
-                                    articlePricePerKg2 = Math.Round(double.Parse(price2, CultureInfo.InvariantCulture), 2);
-                                }
-                            }
+                            
+
+                            string description = articlePricesPerKg.Split('(')[0].Trim();        //extrahiert die Beschreibung, welche vor dem Kilo Preis steht
 
                             var priceContainer = item.SelectSingleNode("./article" +
                                 "//div[contains(@class, 'bubble offer-tile')]" +
                                 "//div");
 
-                            string oldPriceText = "", newPriceText = "";
                             double oldPrice = 0, newPrice = 0;
 
-                            var price = priceContainer.SelectSingleNode("./div//span[@class='value']");
-                            if (price != null)
+                            if (priceContainer != null)
                             {
-                                oldPriceText = price.InnerText.Replace('–', ' ');
-                                oldPrice = double.Parse(oldPriceText, CultureInfo.InvariantCulture);
-                                oldPrice = Math.Round(oldPrice, 2);
+                                var priceElement = priceContainer.SelectSingleNode("./div//span[@class='value']");
+                                if (priceElement != null)
+                                {
+                                    var prices = ExtractPrices(priceElement.InnerText);
+                                    if (prices != null && prices.Count >= 1)
+                                        oldPrice = prices[0];
+                                }
+
+                                priceElement = priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']");
+                                if (priceElement != null)
+                                {
+                                    var prices = ExtractPrices(priceElement.InnerText);
+                                    if (prices != null && prices.Count >= 1)
+                                        newPrice = prices[0];
+                                }
                             }
 
-                            price = priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']");
-                            if (price != null)
-                            {
-                                newPriceText = priceContainer.SelectSingleNode("./span[@class='ellipsis bubble__price']").InnerText.
-                                    Replace('–', ' ').Replace('*', ' ');
-                                if (!double.TryParse(newPriceText, CultureInfo.InvariantCulture, out newPrice))
-                                    Debug.WriteLine($"folgende Zeichenkette konnte nicht umgewandelt werden: {newPriceText}");
-                                newPrice = Math.Round(newPrice, 2);
-                            }
+                            var pricesPerKg = ExtractPrices(articlePricesPerKg, newPrice);
 
-                            products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg1, articlePricePerKg2, badge, offerStartDate));
+                            foreach (var pricePerKg in pricesPerKg)
+                            {
+                                products.Add(new Product(articleName, description, oldPrice, newPrice, pricePerKg, badge, offerStartDate));
+                            }
                         }
                     }
                 }
@@ -132,38 +131,91 @@ namespace LookForSpecialOffers
                 WebScraperHelper.SaveToExcel(products, period, Program.ExcelPath, Discounter.Penny);
             }
 
-            static string[] ExtractPrices(string input)
+            static List<double> ExtractPrices(string input, double newPrice = 0)
             {
-                string[] prices = new string[2];
-                if (!input.Contains("("))           // Der Preis (falls vorhanden) ist immer in der Klammer enthalten. Wenn kein Preis vorhanden ist, dann interessiert diese Info nicht und gibt einen leeren String zurück.
-                    return prices;
+                string pattern = @"(\d+\,\d+)|(\d+\.\d+)|(\.\d+)|(\d+)";
+                // Regulären Ausdruck erstellen
+                Regex regex = new Regex(pattern);
 
-                // Teile den Eingabetext am "="-Zeichen
-                string[] parts = input.Split('=');
+                List<double> prices = new List<double>();
+                // Der Preis (falls vorhanden) ist immer in der Klammer enthalten.
+                // Wenn kein Preis vorhanden ist, dann interessiert diese Info nicht und gibt einen leeren String zurück.
+                //if (!input.Contains("("))           
+                //    return prices;
 
-                // Überprüfen, ob der Eingabetext das erwartete Format hat
-                if (parts.Length == 2)
+                // Teile den Eingabetext am "="-Zeichen, wenn vorhanden
+                if (input.ToLower().Contains("="))
                 {
-                    // Extrahieren Sie den Teil nach dem "="-Zeichen und entfernen Sie unnötige Leerzeichen
+                    string[] parts = input.Split('=');
+
+                    // Extrahieren Sie den Teil nach dem "="-Zeichen und entferne unnötige Leerzeichen
                     string valuePart = parts[1].Trim();
 
                     if (valuePart.Contains('/'))
                     {
-                        prices = valuePart.Split('/');
-                        prices[1] = prices[1].Replace(')', ' ');
+                        
+                        MatchCollection matches = regex.Matches(input);
+
+                        foreach (Match match in matches)
+                        {
+                            double amount = 0;
+                            if (match.Success)
+                            {
+                                if (!double.TryParse(match.Value.Replace(",", "."), CultureInfo.InvariantCulture, out amount))
+                                {
+                                    Console.WriteLine($"Der extrahierte Wert: {match.Value} konnte nicht als Zahl umgewandelt werden");
+                                }
+                                else
+                                {
+                                    amount = Math.Round(amount, 2);
+                                }
+                            }
+                            prices.Add(amount);
+                        }
                     }
                     else
                     {
-                        // Die schließende Klammer wird entfernt
-                        prices[0] = valuePart.Replace(')', ' ');
-                    }
+                        double price = ExtractSinglePriceOrValue(valuePart, regex);
+                        prices.Add(price);
 
-                    return prices;
+                    }
+                }
+                else if (input.Contains("kg") || (input.ToLower().Contains("l") && input.ToLower().Contains("je")))
+                {
+                    double value = ExtractSinglePriceOrValue(input, regex);
+                    if (value == 0) { value = 1; }
+                    if (newPrice != 0)
+                    {
+                        prices.Add(Math.Round(newPrice / value, 2));
+                    }
                 }
                 else
                 {
-                    Debug.WriteLine("ungültiges input format");
-                    return prices;          // in diesen Fall ist prices jeweils leer
+                    double price = ExtractSinglePriceOrValue(input, regex);
+                    prices.Add(price);
+                }
+
+                return prices;
+
+                static double ExtractSinglePriceOrValue(string input, Regex regex)
+                {
+                    Match match = regex.Match(input);
+                    string priceText = string.Empty;
+                    if (match.Success)
+                    {
+                        priceText = match.Value.Replace(",", ".");
+                    }
+                    double price = 0;
+
+                    if (!double.TryParse(match.Value, CultureInfo.InvariantCulture, out price))
+                    {
+                        Console.WriteLine($"Der extrahierte Wert: {match.Value} konnte nicht als Zahl umgewandelt werden");
+                    }
+                    else
+                    {
+                        price = Math.Round(price, 2);
+                    }
+                    return price;
                 }
             }
 
@@ -182,7 +234,7 @@ namespace LookForSpecialOffers
                             if (product.Name.ToLower().Trim().Contains(interestingProduct.Name.ToLower().Trim()))
                             {
                                 // falls bei beiden Kg bzw. Liter Preise nichts drin steht, dann könnte das bedeuten, dass entweder die Menge schon ein Kilo entspricht oder dass es einzel Preise sind
-                                if (product.PricePerKgOrLiter1 == 0 && product.PricePerKgOrLiter2 == 0)
+                                if (product.PricePerKgOrLiter == 0)
                                 {
                                     if (product.NewPrice <= interestingProduct.PriceCap)
                                     {
@@ -190,8 +242,7 @@ namespace LookForSpecialOffers
                                         interestingOfferCount++;
                                     }
                                 }
-                                else if ((product.PricePerKgOrLiter1 <= interestingProduct.PriceCap && product.PricePerKgOrLiter1 != 0) ||
-                                    (product.PricePerKgOrLiter2 <= interestingProduct.PriceCap && product.PricePerKgOrLiter2 != 0))
+                                else if (product.PricePerKgOrLiter <= interestingProduct.PriceCap && product.PricePerKgOrLiter != 0) 
                                 {
                                     offers += $" {product.Name} für nur {product.NewPrice} €.\n";
                                     interestingOfferCount++;
@@ -230,7 +281,7 @@ namespace LookForSpecialOffers
                 try
                 {
                     //parent = (WebElement)driver.FindElement(By.XPath("//*[@id='usercentrics-root']"));
-                    parent = (IWebElement?)WebScraperHelper.Searching(driver, "//*[@id='usercentrics-root']", KindOfSearchElement.FindElementByXPath);
+                    parent = (IWebElement?)WebScraperHelper.Searching(driver, "//*[@id='usercentrics-root']", KindOfSearchElement.FindElementByXPath,500,10);
                 }
                 catch (Exception ex)
                 {

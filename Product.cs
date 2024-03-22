@@ -12,19 +12,17 @@ namespace LookForSpecialOffers
         public string Description { get; set; }
         public double OldPrice { get; set; }
         public double NewPrice { get; set; }
-        public double PricePerKgOrLiter1 { get; set; }
-        public double PricePerKgOrLiter2 { get; set; }
+        public double PricePerKgOrLiter { get; set; }
         public string Badge { get; set; }
         public string OfferStartDate { get; set; }
 
-        public Product(string name, string description, double oldPrice, double newPrice, double pricePerKgOrLiter1, double pricePerKgOrLiter2, string badge, string offerStartDate)
+        public Product(string name, string description, double oldPrice, double newPrice, double pricePerKgOrLiter, string badge, string offerStartDate)
         {
             Name = name;
             Description = description;
             OldPrice = oldPrice;
             NewPrice = newPrice;
-            PricePerKgOrLiter1 = pricePerKgOrLiter1;
-            PricePerKgOrLiter2 = pricePerKgOrLiter2;
+            PricePerKgOrLiter = pricePerKgOrLiter;
             Badge = badge;
             OfferStartDate = offerStartDate;
         }

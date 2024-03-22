@@ -143,6 +143,8 @@ namespace LookForSpecialOffers
                     oldScrollHeight = newScrollHeight;
 
             }
+            ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
+
             //((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, {newPos});");
 
             //Scrolle noch den Rest runter
@@ -657,7 +659,7 @@ namespace LookForSpecialOffers
 
             ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets.Add(discounter.ToString());
 
-            int columnCount = 8;                                  // Anzahl der Spalten
+            int columnCount = 7;                                  // Anzahl der Spalten
 
             var cellHeadline = worksheet.Cells[1, 1];
             worksheet.Cells["A1:H2"].Merge = true;                  // Bereich verbinden
@@ -695,10 +697,9 @@ namespace LookForSpecialOffers
             worksheet.Cells[3, 2].Value = "Bezeichnung";
             worksheet.Cells[3, 3].Value = "Vorheriger Preis";
             worksheet.Cells[3, 4].Value = "Neuer Preis";
-            worksheet.Cells[3, 5].Value = "Preis Pro Kg oder Liter (erstes Angebot)";
-            worksheet.Cells[3, 6].Value = "Preis Pro Kg oder Liter (zweites Angebot)";
-            worksheet.Cells[3, 7].Value = "Info";
-            worksheet.Cells[3, 8].Value = "Beginn";
+            worksheet.Cells[3, 5].Value = "Preis Pro Kg oder Liter";
+            worksheet.Cells[3, 6].Value = "Info";
+            worksheet.Cells[3, 7].Value = "Beginn";
 
             // Beschriftung formatieren
             HighLightCells(3, 1, 3, columnCount, Color.Gray, worksheet);
@@ -721,18 +722,13 @@ namespace LookForSpecialOffers
                     worksheet.Cells[i + offsetRow, 4].Value = products[i].NewPrice;
                     worksheet.Cells[i + offsetRow, 4].Style.Numberformat.Format = euroFormat;
                 }
-                if (products[i].PricePerKgOrLiter1 != 0)
+                if (products[i].PricePerKgOrLiter != 0)
                 {
-                    worksheet.Cells[i + offsetRow, 5].Value = products[i].PricePerKgOrLiter1;
+                    worksheet.Cells[i + offsetRow, 5].Value = products[i].PricePerKgOrLiter;
                     worksheet.Cells[i + offsetRow, 5].Style.Numberformat.Format = euroFormat;
                 }
-                if (products[i].PricePerKgOrLiter2 != 0)
-                {
-                    worksheet.Cells[i + offsetRow, 6].Value = products[i].PricePerKgOrLiter2;
-                    worksheet.Cells[i + offsetRow, 6].Style.Numberformat.Format = euroFormat;
-                }
-                worksheet.Cells[i + offsetRow, 7].Value = products[i].Badge;
-                worksheet.Cells[i + offsetRow, 8].Value = products[i].OfferStartDate;
+                worksheet.Cells[i + offsetRow, 6].Value = products[i].Badge;
+                worksheet.Cells[i + offsetRow, 7].Value = products[i].OfferStartDate;
 
                 if (i % 2 == 1)
                 {
@@ -746,15 +742,14 @@ namespace LookForSpecialOffers
                     if (IsContains(interestingProduct.Name, produktFullName))
                     {
 
-                        if (products[i].PricePerKgOrLiter1 == 0 && products[i].PricePerKgOrLiter2 == 0)
+                        if (products[i].PricePerKgOrLiter == 0)
                         {
                             if (products[i].NewPrice <= interestingProduct.PriceCap)
                             {
                                 HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
                             }
                         }
-                        else if ((products[i].PricePerKgOrLiter1 <= interestingProduct.PriceCap && products[i].PricePerKgOrLiter1 != 0) ||
-                                    (products[i].PricePerKgOrLiter2 <= interestingProduct.PriceCap && products[i].PricePerKgOrLiter2 != 0))         // es existieren teilweise 2 kg Preise, je nach Produktausführung.
+                        else if (products[i].PricePerKgOrLiter <= interestingProduct.PriceCap && products[i].PricePerKgOrLiter != 0)      
                         {
                             HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
                         }
