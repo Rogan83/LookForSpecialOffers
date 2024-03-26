@@ -39,71 +39,140 @@ namespace LookForSpecialOffers
 
             driver.Navigate().GoToUrl(pathMainPage);
 
+            // Drückt den "akzeptiere die Cookies" Button
             //driver.FindElement(By.Id("onetrust-accept-btn-handler"));
             //akzeptiere den Cookie Button
             //var cookieAcceptBtn = (IWebElement?)Searching(driver, "onetrust-accept-btn-handler", KindOfSearchElement.FindElementByID);
             //cookieAcceptBtn?.Click();
 
-            // Gehe zu jeder Unterseite ...
-            IWebElement? mainDivContainer = null;
+
+            // Suche falls vorhanden den Button, welcher alle Unterseiten anzeigt.
+            // Dieser erscheint nur dann, wenn besonders viele Unterseiten vorhanden sind.
+            IWebElement? showMoreBtn = null;
 
             try
             {
-                mainDivContainer = (IWebElement?)Searching(driver, "//div[@class = 'AHeroStageItems']",
-                    KindOfSearchElement.FindElementByXPath,500,3);  //Sucht solange nach diesen Element, bis es erschienen ist.
+                showMoreBtn = (IWebElement?)Searching(driver, ".AMoreHeroStageItems__ToggleButton-label",
+                    KindOfSearchElement.FindElementByCssSelector, 500, 3);  
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"Error{ex.Message}");
+                Console.WriteLine($"Der Button, welcher mehr Unterseiten anzeigen lässt, wurde nicht gefunden.");
             }
 
-            if (mainDivContainer != null)
+            if (showMoreBtn != null)
             {
+                ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", showMoreBtn);
+            }
+
+            //Scrolle die Seite nach unten, damit alle Elemente von der Seite geladen werden.
+            ScrollToBottom(driver, 300, 500, 500);
+            IWebElement? main = null;
+
+            try
+            {
+                main = (IWebElement?)Searching(driver,
+                    "[class*='AHeroStageGroup__Body AHeroStageGroup__Body-Current_Sales_Week']",
+                    KindOfSearchElement.FindElementByCssSelector, 500, 3);
+            }
+            catch
+            {
+                Console.WriteLine("Haupt Container nicht gefunden.");
+            }
+
+            if (main == null) { return; }
+
+            IWebElement? main2 = null;
+            try
+            {
+                main2 = (IWebElement?)Searching(main, driver,
+                  "div[contains(@class, 'AMoreHeroStageItems APageRoot__Section')]", KindOfSearchElement.FindElementByXPath, 500, 3);
+            }
+            catch
+            {
+
+            }
+            if (main2 == null) { return; }
+
+            ReadOnlyCollection<IWebElement?>? mainDivContainers = null;
+            try
+            {
+                //mainDivContainers = (ReadOnlyCollection<IWebElement?>?)Searching(driver, ".AMoreHeroStageItems.APageRoot__Section",
+                //  KindOfSearchElement.FindElementsByCssSelector, 500, 3);
+                //mainDivContainers = (ReadOnlyCollection<IWebElement?>?)Searching(main, driver,
+                //  "div[contains(@class, 'APageRoot__Section')]", KindOfSearchElement.FindElementsByXPath, 500, 3);
+                //mainDivContainers = (ReadOnlyCollection<IWebElement?>?)Searching(main2, driver,
+                //  "//div[contains(@class, 'AHeroStageItems')]", KindOfSearchElement.FindElementsByXPath, 500, 3);
+                mainDivContainers = (ReadOnlyCollection<IWebElement?>?)Searching(main2, driver,
+                 "./div", KindOfSearchElement.FindElementsByXPath, 500, 3);
+            }
+            catch
+            {
+                Console.WriteLine("Die main Container wurden nicht gefunden.");
+            }
+
+            if (mainDivContainers == null) { return; }
+            //class = 'AHeroStageItems' beinhaltet nicht alles. Es gibt noch min. einen container
+            //foreach (var mainDivContainer in mainDivContainers)
+            for (int i = 1; i < mainDivContainers.Count; i++)
+            {
+                if (mainDivContainers[i] == null) { continue; }
+                
                 ReadOnlyCollection<IWebElement?>? list = null;
                 try
                 {
-                    //list = (mainDivContainer.FindElement(By.XPath(".//ol"))).FindElements(By.TagName("li"));
-                    IWebElement? ol = (IWebElement?)Searching(mainDivContainer, driver, ".//ol", KindOfSearchElement.FindElementByXPath, 500, 3);
-                    list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li", KindOfSearchElement.FindElementsByTagName); 
+                    IWebElement? ol = (IWebElement?)Searching(mainDivContainers[i], driver, "ol.AHeroStageItems__List", 
+                        KindOfSearchElement.FindElementByCssSelector, 500, 4);
+                    list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li", KindOfSearchElement.FindElementsByTagName);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error: {ex}");
-                    return;
+                    Console.WriteLine($"Die Ol im Hauptcontainer wurde nicht gefunden. Error: {ex}");
+                    continue;
                 }
 
-                Console.WriteLine("anzahl Unterseiten: "  + list?.Count);
+                Console.WriteLine($"Die Anzahl der Unterseiten vom Container mit dem Klassennamen: " +
+                    $"{mainDivContainers[i].GetAttribute("class")} und der ID: {mainDivContainers[i].GetAttribute("id")} " +
+                    $"beträgt: " + list?.Count);
 
                 if (list == null) { return; }
+                
+                for (int page = 0; page < list.Count; page++)
                 {
-                    //foreach (var li in list)
-                    for (int page = 0; page < list.Count; page++)
+                    //Seitennr. 6 sind die Bio Produkte von div 2.
+                    //Vermutlich muss erst der btn gedrückt werden, damit alle Elemente geladen werden.
+                    Console.WriteLine("Seitennummer: " + page);
+                    if (list[page] == null) { continue; }
+
+                    IWebElement? aTag = null;
+
+                    try
                     {
-                        Console.WriteLine("Seitennummer: " + page);
-                        if (list[page] == null) { continue; }
-                        //verursachte eine Fehlermeldung (vermutlich wurde keine elemente mit dem Tag "a" gefunden, aber genau weiß ich es nicht, da diese nur selten auftaucht
-                        //var aTag = li.FindElement(By.XPath((".//a")));
-                        var aTag = (IWebElement?)Searching(list[page], driver, ".//a", KindOfSearchElement.FindElementByXPath,500,3);
+                        aTag = (IWebElement?)Searching(list[page], driver, ".//a", KindOfSearchElement.FindElementByXPath, 500, 3);
+                    }
+                    catch
+                    {
+                        Console.WriteLine("Das Element mit dem Tag '<a>' wurde nicht gefunden.");
+                    }
 
-                        string url = string.Empty;
-                        if (aTag != null)
-                        {
-                            url = aTag.GetAttribute("href");
-                        }
-                        else
-                        {
-                            Console.WriteLine("Das HTML Element 'a' wurde nicht gefunden");
-                        }
+                    string url = string.Empty;
+                    if (aTag != null)
+                    {
+                        url = aTag.GetAttribute("href");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Das HTML Element 'a' wurde nicht gefunden");
+                    }
 
-                        if (!string.IsNullOrEmpty(url))
-                        {
-                            driver.Navigate().GoToUrl(url);
+                    if (!string.IsNullOrEmpty(url))
+                    {
+                        driver.Navigate().GoToUrl(url);
 
-                            // Unterseite extrahieren
-                            ExtractSubPage(driver, url);
+                        // Unterseite extrahieren
+                        ExtractSubPage(driver, url);
 
-                            driver.Navigate().Back();
-                        }
+                        driver.Navigate().Back();
                     }
                 }
             }
@@ -111,10 +180,11 @@ namespace LookForSpecialOffers
             WebScraperHelper.SaveToExcel(products, period, Program.ExcelPath, Discounter.Lidl);
 
             #region verschachtelte Methode(n)
+            // Extrahiere die Seite, wo jeweils alle Produkte stehen
             static void ExtractSubPage(IWebDriver driver, string url)
             {
                 ScrollToBottom(driver, 300, 1000, 500);
-                //((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
+                ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
 
                 IWebElement? mainDivContainer = null;       //Hauptcontainer
 
@@ -147,10 +217,24 @@ namespace LookForSpecialOffers
                     "and contains(@class, 'APageRoot__Section') " +
                     "and contains(@class, 'ATheCampaign__SectionWrapper--relative')]";
 
-                ReadOnlyCollection<IWebElement?>? sections = (ReadOnlyCollection<IWebElement?>?)Searching(mainDivContainer,
+                ReadOnlyCollection<IWebElement?>? sections = null;
+                try
+                {
+                    sections = (ReadOnlyCollection<IWebElement?>?)Searching(mainDivContainer,
                     driver, searchname, KindOfSearchElement.FindElementsByXPath, 500, 3);
+                }
+                catch
+                {
+                    Console.WriteLine("Es wurden keine Sections gefunden auf dieser Seite.");
+                }
+                
                 //Debug
                 Console.WriteLine($"anzahl sections: {sections?.Count()}");
+                //info
+                // Die "ol" mit der klasse "ACampaignGrid" beinhaltet ein li Element mit der Überschrift:
+                // "beste Preis zum wochenstart",
+                // aber auch li Elemente mit Produkten mit den Klassennamen:  "ACampaignGrid__item ACampaignGrid__item--product" 
+                // Letzeres ist interessant
 
                 if (sections == null) return;
 
@@ -175,96 +259,108 @@ namespace LookForSpecialOffers
                         return;
                     }
 
-                    ReadOnlyCollection<IWebElement?>? list = null;
+                    ReadOnlyCollection<IWebElement?>? liElements = null;
+                    
                     //Thread.Sleep(500);
                     // Bug. Die liste ist teilweise leer und teilweise hat sie elemente, ka. wieso. 
                     
+                    try
                     {
-                        list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
-                            KindOfSearchElement.FindElementsByCssSelector);
-                        int listAmount = list.Count();
-                        listAmount = list != null ? list.Count() : 0;
-                        int count = 0;
-                        int maxCount = 20;
-                        while (listAmount == 0)
+                        liElements = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, 
+                            "li.ACampaignGrid__item.ACampaignGrid__item--product", 
+                            KindOfSearchElement.FindElementsByCssSelector, 500, 3);
+                    }
+                    catch
+                    {
+                        Console.WriteLine($"in der Section mit der id {section.GetAttribute("id")} wurden keine Produkte gefunden");
+                    }
+                    
+                    
+                    //productInfoContainer = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
+                    //    KindOfSearchElement.FindElementsByCssSelector);
+                    //int listAmount = productInfoContainer.Count();
+                    //listAmount = productInfoContainer != null ? productInfoContainer.Count() : 0;
+                    //int count = 0;
+                    //int maxCount = 20;
+                    //while (listAmount == 0)
+                    //{
+                    //    if (count >= maxCount)
+                    //    {
+                    //        Console.WriteLine($"Es wurden nach {count} erneuten Laden der Seite keine Listen Elemente gefunden!");
+                    //        break;
+                    //    }
+                    //    count++;
+
+                    //    listAmount = productInfoContainer != null? productInfoContainer.Count() : 0;
+                    //    Console.WriteLine("anzahl listen items: " + listAmount);
+
+                    //    driver.Navigate().GoToUrl(pathMainPage);
+                    //    Thread.Sleep(100);
+                    //    driver.Navigate().GoToUrl(url);
+                    //    //ScrollToBottom(driver, 300, 1000, 500);
+                    //    //((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
+                    //    Thread.Sleep(100);
+                    //    //list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
+                    //    //KindOfSearchElement.FindElementsByCssSelector);
+                    //    //list = ol.FindElements(By.CssSelector
+                    //    //    ("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box"));
+                    //    productInfoContainer = FindListOfProducts("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box");
+                    //    listAmount = productInfoContainer != null ? productInfoContainer.Count() : 0;
+                    //}
+                    //list = ol.FindElements(By.CssSelector("li.ACampaignGrid__item.ACampaignGrid__item--product"));
+                    ReadOnlyCollection<IWebElement?>?FindListOfProducts(string name)
+                    {
+                        try
                         {
-                            if (count >= maxCount)
+                            // Versuche, das Element zu finden
+                            ReadOnlyCollection<IWebElement?>? elements = ol.FindElements(By.CssSelector("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box"));
+
+                            // Überprüfe, ob die Liste leer ist
+                            if (elements.Count == 0)
                             {
-                                Console.WriteLine($"Es wurden nach {count} erneuten Laden der Seite keine Listen Elemente gefunden!");
-                                break;
-                            }
-                            count++;
-
-                            listAmount = list != null? list.Count() : 0;
-                            Console.WriteLine("anzahl listen items: " + listAmount);
-
-                            driver.Navigate().GoToUrl(pathMainPage);
-                            Thread.Sleep(100);
-                            driver.Navigate().GoToUrl(url);
-                            ScrollToBottom(driver, 300, 1000, 500);
-                            ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 0);");
-                            Thread.Sleep(100);
-                            //list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box",
-                            //KindOfSearchElement.FindElementsByCssSelector);
-                            //list = ol.FindElements(By.CssSelector
-                            //    ("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box"));
-                            list = FindListOfProducts("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box");
-                            listAmount = list != null ? list.Count() : 0;
-                        }
-                        //list = ol.FindElements(By.CssSelector("li.ACampaignGrid__item.ACampaignGrid__item--product"));
-                        ReadOnlyCollection<IWebElement?>?FindListOfProducts(string name)
-                        {
-                            try
-                            {
-                                // Versuche, das Element zu finden
-                                ReadOnlyCollection<IWebElement?>? elements = ol.FindElements(By.CssSelector("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box"));
-
-                                // Überprüfe, ob die Liste leer ist
-                                if (elements.Count == 0)
-                                {
-                                    // Das Element wurde nicht gefunden, gib null zurück
-                                    return null;
-                                }
-
-                                // Das Element wurde gefunden, gib die Liste der Elemente zurück
-                                return elements;
-                            }
-                            catch 
-                            {
-                                // Falls eine NoSuchElementException auftritt, gib null zurück
+                                // Das Element wurde nicht gefunden, gib null zurück
                                 return null;
                             }
+
+                            // Das Element wurde gefunden, gib die Liste der Elemente zurück
+                            return elements;
+                        }
+                        catch 
+                        {
+                            // Falls eine NoSuchElementException auftritt, gib null zurück
+                            return null;
                         }
                     }
+                    
                     //catch (Exception ex)
                     //{
                     //    Console.WriteLine($"Fehler: {ex}");
                     //    return;
                     //}
 
-                    if (list == null) { Console.WriteLine("produkt liste ist null."); return; }
-                    else if (list.Count() == 0) { Console.WriteLine("produkt liste ist leer."); return; }
+                    if (liElements == null) { Console.WriteLine("produkt liste ist null."); return; }
+                    else if (liElements.Count() == 0) { Console.WriteLine("produkt liste ist leer."); return; }
 
-                    foreach (var li in list)
+                    foreach (var liElement in liElements)
                     {
-                        if (li == null) { continue; }
+                        if (liElement == null) { continue; }
 
-                        IWebElement? divProduct = null;
+                        IWebElement? productInfoContainer = null;
+
                         try
                         {
-                            //divProduct = li.FindElement(By.CssSelector(".product-grid-box.grid-box"));
-                            divProduct = li;
-                            //divProduct = (IWebElement?)Searching(li, driver, ".product-grid-box.grid-box", KindOfSearchElement.FindElementByCssSelector,500,15);
-                            Console.WriteLine("typ vom div: "+divProduct.GetType());
+                            productInfoContainer = (IWebElement?)Searching(liElement, driver, 
+                                ".product-grid-box.grid-box", KindOfSearchElement.FindElementByCssSelector);
+                            Console.WriteLine("typ vom div: "+ productInfoContainer.GetType());
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"div container für die Produkte nicht gefunden. Fehlermeldung: {ex}");
-                            return;
+                            Console.WriteLine($"div container für das Produkt nicht gefunden. Fehlermeldung: {ex}");
+                            continue;
                         }
 
                         // Extrahiere alle Informationen
-                        string articleName = WebUtility.HtmlDecode(divProduct.FindElement(By.XPath
+                        string articleName = WebUtility.HtmlDecode(productInfoContainer.FindElement(By.XPath
                             (".//a")).GetAttribute("aria-label"));
 
 
@@ -281,20 +377,21 @@ namespace LookForSpecialOffers
 
                         string oldPriceText = string.Empty, newPriceText = string.Empty, articlePricePerKgText = string.Empty;
 
-                        List<double> temp = ConvertPrices(divProduct, ".m-price__price.m-price__price--small", newPriceText);
+                        // suche nach dem neuen (aktuellen) Preis
+                        List<double> temp = ConvertPrices(productInfoContainer, ".m-price__price.m-price__price--small", newPriceText);
                         if (temp.Count > 0)
                             newPrice = temp[0];  // Es kommt nur 1 aktueller Preis vor
-
-                        temp = ConvertPrices(divProduct, ".strikethrough.m-price__rrp", oldPriceText);
+                        // suche nach dem vorherigen Preis, welcher durchgestrichen dargestellt wird.
+                        temp = ConvertPrices(productInfoContainer, ".strikethrough.m-price__rrp", oldPriceText);
                         if (temp.Count > 0)
                             oldPrice = temp[0];  // Es kommt nur 1 vorheriger Preis vor
 
-                        articlePricesPerKg = ConvertPrices(divProduct, ".price-footer", articlePricePerKgText, newPrice, true);
+                        articlePricesPerKg = ConvertPrices(productInfoContainer, ".price-footer", articlePricePerKgText, newPrice, true);
 
                         string description = string.Empty;
                         try 
                         {
-                            description = divProduct.FindElement(By.CssSelector(".product-grid-box__amount")).Text.Trim();
+                            description = productInfoContainer.FindElement(By.CssSelector(".product-grid-box__amount")).Text.Trim();
                         }
                         catch
                         {
