@@ -68,7 +68,7 @@ namespace LookForSpecialOffers
         /// <param name="driver"></param>
         /// <param name="delayPerStep"></param>
         /// <param name="stepsCount"></param>
-        internal static void ScrollToBottom(IWebDriver driver, int delayPerStep = 50, int scrollStep = 2000, int delayDetermineScrollHeigth = 500)
+        internal static void ScrollThroughPage(IWebDriver driver, int delayPerStep = 50, int scrollStep = 2000, int delayDetermineScrollHeigth = 500)
         {
             Random rand = new Random();
 
