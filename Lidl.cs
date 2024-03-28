@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -145,7 +146,7 @@ namespace LookForSpecialOffers
             // Extrahiere die Seite, wo jeweils alle Produkte stehen
             static void ExtractSubPage(IWebDriver driver, string url)
             {
-                ScrollThroughPage(driver, 300, 1000, 500);
+                ScrollThroughPage(driver, 300, 1000, 100);
 
                 IWebElement? mainDivContainer = null;       //Hauptcontainer
 
@@ -164,25 +165,19 @@ namespace LookForSpecialOffers
                     Console.WriteLine($"Main Container auf folgender Unterseite nicht gefunden: {url}");
                     return;
                 }
-
-                //Thread.Sleep(100);
-                //ReadOnlyCollection<IWebElement> sections = mainDivContainer.FindElements(By.XPath
-                //    (".//section[contains(@class, 'ATheCampaign__SectionWrapper') " +
+                // ist wohl zu speziell, da auf der deluxe Seite die Sections etwas anders heißen.
+                //string searchname = ".//section[contains(@class, 'ATheCampaign__SectionWrapper') " +
                 //    "and contains(@class, 'APageRoot__Section') " +
-                //    "and contains(@class, 'ATheCampaign__SectionWrapper--relative')]"));
-
-                //Console.WriteLine("datentyp von sections: "+sections.GetType());
-                //Console.WriteLine("anzahl: "+sections.Count);
+                //    "and contains(@class, 'ATheCampaign__SectionWrapper--relative')]";
 
                 string searchname = ".//section[contains(@class, 'ATheCampaign__SectionWrapper') " +
-                    "and contains(@class, 'APageRoot__Section') " +
-                    "and contains(@class, 'ATheCampaign__SectionWrapper--relative')]";
+                     "and contains(@class, 'APageRoot__Section')]"; 
 
                 ReadOnlyCollection<IWebElement?>? sections = null;
                 try
                 {
                     sections = (ReadOnlyCollection<IWebElement?>?)Searching(mainDivContainer,
-                    driver, searchname, KindOfSearchElement.FindElementsByXPath, 500, 1);
+                        driver, searchname, KindOfSearchElement.FindElementsByXPath, 500, 2);
                 }
                 catch
                 {
@@ -264,8 +259,14 @@ namespace LookForSpecialOffers
 
                         try
                         {
+                            //productInfoContainer = (IWebElement?)Searching(liElement, driver,
+                            //    ".product-grid-box.grid-box", KindOfSearchElement.FindElementByCssSelector, 500,1);
+                            //productInfoContainer = (IWebElement?)Searching(liElement, driver,
+                            //    ".//div[contains(@class, 'product-grid-box grid-box')", 
+                            //    KindOfSearchElement.FindElementByXPath, 500, 2);
                             productInfoContainer = (IWebElement?)Searching(liElement, driver,
-                                ".product-grid-box.grid-box", KindOfSearchElement.FindElementByCssSelector, 500,1);
+                                "./div/div/div[contains(@class, 'product-grid-box grid-box')]",
+                                KindOfSearchElement.FindElementByXPath, 500, 2);
                         }
                         catch (Exception ex)
                         {
@@ -274,42 +275,68 @@ namespace LookForSpecialOffers
                         }
 
                         // Extrahiere alle Informationen
-                        string articleName = WebUtility.HtmlDecode(productInfoContainer.FindElement(By.XPath
-                            (".//a")).GetAttribute("aria-label"));
+                        //section[contains(@class, 'ATheCampaign__SectionWrapper')
+                        //string articleName = WebUtility.HtmlDecode(productInfoContainer.FindElement(By.XPath
+                        //    (".//a")).GetAttribute("aria-label"));
 
+                        //enthält infos wie artikelname und die Beschreibung.
+                        IWebElement? content = null;
+                        try
+                        {
+                            //content = productInfoContainer?.FindElement(By.XPath
+                            //    ("./div[contains(@class, 'content')]"));
+                            if (productInfoContainer != null)
+                            {
+                                content = (IWebElement?)Searching(productInfoContainer, driver, 
+                                    "./div[contains(@class, 'content')]",
+                                    KindOfSearchElement.FindElementByXPath, 500, 2);
+                            }
+                        }
+                        catch 
+                        {
+                        }
+
+                        string articleName = WebUtility.HtmlDecode(content?.FindElement(By.XPath
+                            ("./h2"))?.Text ??"");
+
+                        string badge = WebUtility.HtmlDecode(content?.FindElement(By.XPath
+                            ("./div[contains(@class, 'text')]"))?.Text ??"");
 
                         //test
-                        if (articleName.ToLower().Contains("dash"))
+                        if (articleName.ToLower().Contains("rotkäppchen"))
                         {
-                            int test = 0;
                         }
                         ///
 
                         double newPrice = 0, oldPrice = 0;
-                        List<double> articlePricesPerKg;
+                        List<double> articlePricesPerKg = new List<double>();
                         bool isPriceInCent = false;
 
-                        string oldPriceText = string.Empty, newPriceText = string.Empty, articlePricePerKgText = string.Empty;
+                        string oldPriceText = string.Empty, newPriceText = string.Empty, articlePricePerKgText = string.Empty,
+                            description = string.Empty;
 
                         // suche nach dem neuen (aktuellen) Preis
-                        List<double> temp = ConvertPrices(productInfoContainer, ".m-price__price.m-price__price--small", newPriceText);
-                        if (temp.Count > 0)
-                            newPrice = temp[0];  // Es kommt nur 1 aktueller Preis vor
-                        // suche nach dem vorherigen Preis, welcher durchgestrichen dargestellt wird.
-                        temp = ConvertPrices(productInfoContainer, ".strikethrough.m-price__rrp", oldPriceText);
-                        if (temp.Count > 0)
-                            oldPrice = temp[0];  // Es kommt nur 1 vorheriger Preis vor
-
-                        articlePricesPerKg = ConvertPrices(productInfoContainer, ".price-footer", articlePricePerKgText, newPrice, true);
-
-                        string description = string.Empty;
-                        try
+                        List<double> temp = new List<double>();
+                        if (productInfoContainer != null)
                         {
-                            description = productInfoContainer.FindElement(By.CssSelector(".product-grid-box__amount")).Text.Trim();
-                        }
-                        catch
-                        {
-                            Console.WriteLine("Beschreibung nicht vorhanden");
+                            temp = ConvertPrices(productInfoContainer, ".m-price__price.m-price__price--small", newPriceText);
+                            if (temp.Count > 0)
+                                newPrice = temp[0];  // Es kommt nur 1 aktueller Preis vor
+                                                     // suche nach dem vorherigen Preis, welcher durchgestrichen dargestellt wird.
+                            temp = ConvertPrices(productInfoContainer, ".strikethrough.m-price__rrp", oldPriceText);
+                            if (temp.Count > 0)
+                                oldPrice = temp[0];  // Es kommt nur 1 vorheriger Preis vor
+
+                            articlePricesPerKg = ConvertPrices(productInfoContainer, ".price-footer", articlePricePerKgText, newPrice, true);
+
+                            try
+                            {
+                                description = productInfoContainer.FindElement(By.CssSelector(".product-grid-box__amount")).Text.Trim();
+                            }
+                            catch
+                            {
+                                Console.WriteLine("Beschreibung nicht vorhanden");
+                            }
                         }
 
                         // Es kann sein, dass keine kg Preise ermittelt bzw. gefunden werden konnten.
@@ -317,7 +344,7 @@ namespace LookForSpecialOffers
                         {
                             foreach (double articlePricePerKg in articlePricesPerKg)
                             {
-                                products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, string.Empty, string.Empty));
+                                products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, badge, string.Empty));
                             }
                         }
                         else

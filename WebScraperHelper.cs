@@ -302,7 +302,7 @@ namespace LookForSpecialOffers
                 PollingInterval = TimeSpan.FromMilliseconds(pollingIntervalTime),
             };
             wait.IgnoreExceptionTypes(typeof(ElementNotInteractableException));
-            element = WaitUntil(iWebElement, driver, searchName, searchElement, element, wait);
+            element = WaitUntil(iWebElement, driver, searchName, searchElement, element, wait, 500);
 
             return element;
         }
