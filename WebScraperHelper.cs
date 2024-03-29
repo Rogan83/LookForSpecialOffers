@@ -662,7 +662,7 @@ namespace LookForSpecialOffers
             int columnCount = 7;                                  // Anzahl der Spalten
 
             var cellHeadline = worksheet.Cells[1, 1];
-            worksheet.Cells["A1:H2"].Merge = true;                  // Bereich verbinden
+            worksheet.Cells["A1:G2"].Merge = true;                  // Bereich verbinden
 
             if (discounter == Discounter.Penny)
                 cellHeadline.Value = $"Die Angebote vom Penny vom {period}";
@@ -741,10 +741,9 @@ namespace LookForSpecialOffers
                     string produktFullName = products[i].Name;
                     if (IsContains(interestingProduct.Name, produktFullName))
                     {
-
                         if (products[i].PricePerKgOrLiter == 0)
                         {
-                            if (products[i].NewPrice <= interestingProduct.PriceCap)
+                            if (products[i].NewPrice <= interestingProduct.PriceCap && products[i].NewPrice != 0)
                             {
                                 HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
                             }
@@ -823,39 +822,105 @@ namespace LookForSpecialOffers
         /// <param name="mailAdress"></param>
         /// <param name="subject"></param>
         /// <param name="body"></param>
-        internal static void SendEMail(string mailAdress, string subject, string body)
+        
+
+        /// <summary>
+        /// Informiert jedesmal, wenn neue Angebote verfügbar sind, per E-Mail, wenn diese einen bestimmten festgelegten Preis unterstreiten.
+        /// </summary>
+        /// <param name="isNewOffersAvailable"></param>
+        /// <param name="allProducts"></param>
+        internal static void InformPerEMail(bool isNewOffersAvailable, Dictionary<Discounter, List<Product>> allProducts)
         {
-            // E-Mail-Einstellungen
-            string senderEmail = "d.rothweiler83@gmx.de";
-            string receiverEmail = mailAdress;
-            //string receiverEmail = "d.rothweiler83@gmx.de";
-
-            // SMTP-Server-Einstellungen
-            //string smtpServer = "smtp.mail.yahoo.com";
-            string smtpServer = "mail.gmx.net";
-            int smtpPort = 587; // Standard-Port für SMTP ist 587
-            //string smtpUsername = "d.rothweiler@yahoo.de";
-            string smtpUsername = "d.rothweiler83@gmx.de";
-            //string smtpPassword = "41149512-Dominic";
-            string smtpPassword = "41149512dominic";
-
-            // Erstellen Sie eine neue SMTP-Clientinstanz
-            SmtpClient client = new SmtpClient(smtpServer, smtpPort);
-            client.EnableSsl = true; // SSL aktivieren, falls erforderlich
-            client.Credentials = new NetworkCredential(smtpUsername, smtpPassword);
-
-            // Erstellen Sie eine neue E-Mail-Nachricht
-            MailMessage message = new MailMessage(senderEmail, receiverEmail, subject, body);
-
-            try
+            if (isNewOffersAvailable)
             {
-                // Senden Sie die E-Mail
-                client.Send(message);
-                Console.WriteLine("E-Mail-Benachrichtigung erfolgreich gesendet.");
+                int interestingOfferCount = 0;
+                string offers = string.Empty;
+                // Als nächstes soll untersucht werden, ob von den interessanten Angeboten der Preis auch niedrig genug ist.
+                foreach (var products in allProducts)
+                {
+                    foreach (var product in products.Value)
+                    {
+                        foreach (var interestingProduct in Program.InterestingProducts)
+                        { 
+                            if (product.Name.ToLower().Trim().Contains(interestingProduct.Name.ToLower().Trim()))
+                            {
+                                // falls bei beiden Kg bzw. Liter Preise nichts drin steht, dann könnte das bedeuten, dass entweder die Menge schon ein Kilo entspricht oder dass es einzel Preise sind
+                                if (product.PricePerKgOrLiter == 0)
+                                {
+                                    if (product.NewPrice <= interestingProduct.PriceCap && product.NewPrice != 0)
+                                    {
+                                        offers += $" {product.Name} vom Anbieter {products.Key} für nur {product.NewPrice} €.\n";
+                                        interestingOfferCount++;
+                                    }
+                                }
+                                else if (product.PricePerKgOrLiter <= interestingProduct.PriceCap && product.PricePerKgOrLiter != 0)
+                                {
+                                    offers += $" {product.Name} vom Anbieter {products.Key} für nur {product.NewPrice} €.\n";
+                                    interestingOfferCount++;
+                                }
+                            }
+                        }
+                    }
+                    offers += "\n";
+                }
+
+                string body = string.Empty;
+                string subject = string.Empty;
+                if (interestingOfferCount > 1)
+                {
+                    subject = "Interessante Angebote gefunden!";
+                    body = $"Gute Nachricht! Folgende Angebote, welche deinen preislichen Vorstellungen entspricht, wurden gefunden: \n\n{offers}";
+                }
+                else if (interestingOfferCount == 1)
+                {
+                    subject = "Es wurde ein interessantes Angebot gefunden!";
+                    body = $"Gute Nachricht! Folgendes Angebot, welches deine preisliche Vorstellung entspricht, wurde gefunden: \n\n{offers}";
+                }
+
+                if (interestingOfferCount > 0)
+                {
+                    body += "\nHier sind die Links zu den Anbietern: \n\n" +
+                            "https://www.penny.de/angebote \n" +
+                            "https://www.lidl.de/store \n\n" +
+                            "Viel Spaß beim Einkaufen!";
+
+                    SendEMail(Program.EMail, subject, body);
+                }
             }
-            catch (Exception ex)
+            static void SendEMail(string mailAdress, string subject, string body)
             {
-                Console.WriteLine("Fehler beim Senden der E-Mail-Benachrichtigung: " + ex.Message);
+                // E-Mail-Einstellungen
+                string senderEmail = "d.rothweiler83@gmx.de";
+                string receiverEmail = mailAdress;
+                //string receiverEmail = "d.rothweiler83@gmx.de";
+
+                // SMTP-Server-Einstellungen
+                //string smtpServer = "smtp.mail.yahoo.com";
+                string smtpServer = "mail.gmx.net";
+                int smtpPort = 587; // Standard-Port für SMTP ist 587
+                                    //string smtpUsername = "d.rothweiler@yahoo.de";
+                string smtpUsername = "d.rothweiler83@gmx.de";
+                //string smtpPassword = "41149512-Dominic";
+                string smtpPassword = "41149512dominic";
+
+                // Erstellen Sie eine neue SMTP-Clientinstanz
+                SmtpClient client = new SmtpClient(smtpServer, smtpPort);
+                client.EnableSsl = true; // SSL aktivieren, falls erforderlich
+                client.Credentials = new NetworkCredential(smtpUsername, smtpPassword);
+
+                // Erstellen Sie eine neue E-Mail-Nachricht
+                MailMessage message = new MailMessage(senderEmail, receiverEmail, subject, body);
+
+                try
+                {
+                    // Senden Sie die E-Mail
+                    client.Send(message);
+                    Console.WriteLine("E-Mail-Benachrichtigung erfolgreich gesendet.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Fehler beim Senden der E-Mail-Benachrichtigung: " + ex.Message);
+                }
             }
         }
     }

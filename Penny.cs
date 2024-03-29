@@ -19,11 +19,11 @@ namespace LookForSpecialOffers
 {
     internal static class Penny
     {
+        internal static List<Product> PennyProducts { get; set; } = new();
         // Extrahiert alle Sonderangebote vom Penny und speichert diese formatiert in eine Excel Tabelle ab.
         internal static void ExtractOffers(IWebDriver driver, string oldPeriodHeadline)
         {
             string pathMainPage = "https://www.penny.de/angebote";
-            bool isNewOffersAvailable = false;                  // Sind neue Angebote vom Penny vorhanden? Falls ja, dann soll eine E-Mail verschickt werden
 
             driver.Navigate().GoToUrl(pathMainPage);
 
@@ -33,7 +33,7 @@ namespace LookForSpecialOffers
 
             //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
             HtmlNode? mainContainer = (HtmlNode?)WebScraperHelper.Searching(driver, "//div[contains(@class, 'tabs__content-area')]", KindOfSearchElement.SelectSingleNode);   //Sucht solange nach diesen Element, bis es erschienen ist.
-            List<Product> products = new();
+            
 
             if (mainContainer != null)     //Der maincontainer enthält alles relevantes
             {
@@ -106,7 +106,8 @@ namespace LookForSpecialOffers
 
                             foreach (var pricePerKg in pricesPerKg)
                             {
-                                products.Add(new Product(articleName, description, oldPrice, newPrice, pricePerKg, badge, offerStartDate));
+                                var product = new Product(articleName, description, oldPrice, newPrice, pricePerKg, badge, offerStartDate);
+                                PennyProducts.Add(product);
                             }
                         }
                     }
@@ -124,11 +125,11 @@ namespace LookForSpecialOffers
                 // muss davon ausgegangen werden, dass noch nicht über die neuen Angebote informiert wurde.
                 if (oldPeriodHeadline == string.Empty || !oldPeriodHeadline.Contains(period))
                 {
-                    isNewOffersAvailable = true;
+                    Program.IsNewOffersAvailable = true;
                 }
 
-                InformPerEMail(isNewOffersAvailable, products);
-                WebScraperHelper.SaveToExcel(products, period, Program.ExcelPath, Discounter.Penny);
+                //InformPerEMail(isNewOffersAvailable, pennyProducts);
+                SaveToExcel(PennyProducts, period, Program.ExcelPath, Discounter.Penny);
             }
 
             static List<double> ExtractPrices(string input, double newPrice = 0)
@@ -219,57 +220,7 @@ namespace LookForSpecialOffers
                 }
             }
 
-            // Informiert jedesmal, wenn neue Angebote verfügbar sind, per E-Mail, wenn diese einen bestimmten festgelegten Preis unterstreiten.
-            static void InformPerEMail(bool isNewOffersAvailable, List<Product> products)
-            {
-                if (isNewOffersAvailable)
-                {
-                    int interestingOfferCount = 0;
-                    string offers = string.Empty;
-                    // Als nächstes soll untersucht werden, ob von den interessanten Angeboten der Preis auch niedrig genug ist.
-                    foreach (var product in products)
-                    {
-                        foreach (var interestingProduct in Program.InterestingProducts)
-                        {
-                            if (product.Name.ToLower().Trim().Contains(interestingProduct.Name.ToLower().Trim()))
-                            {
-                                // falls bei beiden Kg bzw. Liter Preise nichts drin steht, dann könnte das bedeuten, dass entweder die Menge schon ein Kilo entspricht oder dass es einzel Preise sind
-                                if (product.PricePerKgOrLiter == 0)
-                                {
-                                    if (product.NewPrice <= interestingProduct.PriceCap)
-                                    {
-                                        offers += $" {product.Name} für nur {product.NewPrice} €.\n";
-                                        interestingOfferCount++;
-                                    }
-                                }
-                                else if (product.PricePerKgOrLiter <= interestingProduct.PriceCap && product.PricePerKgOrLiter != 0) 
-                                {
-                                    offers += $" {product.Name} für nur {product.NewPrice} €.\n";
-                                    interestingOfferCount++;
-                                }
-                            }
-                        }
-                    }
-                    string body = string.Empty;
-                    string subject = string.Empty;
-                    if (interestingOfferCount > 1)
-                    {
-                        subject = "Interessante Angebote gefunden!";
-                        body = $"Gute Nachricht! Folgende Angebote, welche deinen preislichen Vorstellungen entspricht, wurden gefunden: \n\n{offers}";
-                    }
-                    else if (interestingOfferCount == 1)
-                    {
-                        subject = "Es wurde ein interessantes Angebot gefunden!";
-                        body = $"Gute Nachricht! Folgendes Angebot, welches deine preisliche Vorstellung entspricht, wurde gefunden: \n\n{offers}";
-                    }
-
-                    if (interestingOfferCount > 0)
-                    {
-                        body += "\nHier ist der Link: https://www.penny.de/angebote \nLass es dir schmecken!";
-                        WebScraperHelper.SendEMail(Program.EMail, subject, body);
-                    }
-                }
-            }
+            
 
             // Sucht nach den Cookie Button und bestätigt diesen.
             static void ClickCookieButton(IWebDriver driver)
@@ -281,7 +232,7 @@ namespace LookForSpecialOffers
                 try
                 {
                     //parent = (WebElement)driver.FindElement(By.XPath("//*[@id='usercentrics-root']"));
-                    parent = (IWebElement?)WebScraperHelper.Searching(driver, "//*[@id='usercentrics-root']", KindOfSearchElement.FindElementByXPath,500,10);
+                    parent = (IWebElement?)Searching(driver, "//*[@id='usercentrics-root']", KindOfSearchElement.FindElementByXPath,500,10);
                 }
                 catch (Exception ex)
                 {

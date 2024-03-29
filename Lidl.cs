@@ -19,19 +19,18 @@ using static LookForSpecialOffers.WebScraperHelper;
 
 
 //Bug:
-// - Die Produkte von der Kategorie Deluxe wurden nicht mit hinzugefügt
-// - Die liste mit den einzelnen Produkten ist teilweise leer und teilweise hat sie elemente, ka. wieso. 
-// - Der Preis von Ariel wird in 2 vers. Kg Preisen unterteilt, weil die Zeichenkette hinter dem = ein / enthält.
+// - Die Bio Produkte( die keine Preise enthalten auf Unterseite Nr.5) werden nur ab und zu in der Liste mit übernommen.
+// - Wenn das Fenster minimiert ist oder das ganze Programm im Hintergrund läuft, funktioniert es nicht richtig. Ansonsten
+// scheint es zu funktionieren.
 
 //Todo:
-// - Der Beginn von jeden Artikel und ob der Artikel nur mit der App verfügbar ist, wenn möglich noch in die Tabelle speichern.
-//   Außerdem noch von wann bis wann diese Angebote gültig sind, wenn möglich (Notfalls von Penny übernehmen)
+// -noch von wann bis wann diese Angebote gültig sind, wenn möglich (Notfalls von Penny übernehmen)
 
 namespace LookForSpecialOffers
 {
     internal class Lidl
     {
-        static List<Product> products = new();
+        internal static List<Product> LidlProducts = new();
         static string pathMainPage = "https://www.lidl.de/store";
         internal static void ExtractOffers(IWebDriver driver, string oldPeriodHeadline)
         {
@@ -39,14 +38,8 @@ namespace LookForSpecialOffers
 
             driver.Navigate().GoToUrl(pathMainPage);
 
-            // Drückt den "akzeptiere die Cookies" Button
-            //driver.FindElement(By.Id("onetrust-accept-btn-handler"));
-            //akzeptiere den Cookie Button
-            var cookieAcceptBtn = (IWebElement?)Searching(driver, "onetrust-accept-btn-handler", 
-                KindOfSearchElement.FindElementByID,500,2);
-            cookieAcceptBtn?.Click();
-
-            ClickShowMoreBtn(driver);
+            ClickAcceptCookieBtn(driver, 3);
+            ClickShowMoreBtn(driver, 3);
 
             ScrollThroughPage(driver, 300, 500, 500);
             IWebElement? main = null;
@@ -86,8 +79,8 @@ namespace LookForSpecialOffers
                 {
                     IWebElement? ol = (IWebElement?)Searching(mainDivContainers[i], driver, "ol.AHeroStageItems__List",
                         KindOfSearchElement.FindElementByCssSelector, 500, 1);
-                    if (ol != null) 
-                        list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li", 
+                    if (ol != null)
+                        list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li",
                             KindOfSearchElement.FindElementsByTagName, 500, 1);
                 }
                 catch (Exception ex)
@@ -102,10 +95,22 @@ namespace LookForSpecialOffers
 
                 if (list == null) { return; }
 
-                for (int pageNr = 0; pageNr < list.Count; pageNr++)
+                //for (int pageNr = 0; pageNr < list.Count; pageNr++)
+                for (int pageNr = 0; pageNr < 1; pageNr++)
                 {
                     Console.WriteLine("Seitennummer: " + pageNr);
                     if (list[pageNr] == null) { continue; }
+
+                    // Ab wann startet das Angebot
+                    string startDate = string.Empty;
+                    try
+                    {
+                        startDate = ((IWebElement?)Searching(list[pageNr], driver,
+                        "./a/div[contains(@class,'Details')]/p",
+                        KindOfSearchElement.FindElementByXPath, 500, 1))?.Text ?? "";
+                    }
+                    catch { Console.WriteLine("Datum vom Beginn des Angebots nicht gefunden."); }
+
 
                     IWebElement? aTag = null;
 
@@ -133,18 +138,18 @@ namespace LookForSpecialOffers
                         driver.Navigate().GoToUrl(url);
 
                         // Unterseite extrahieren
-                        ExtractSubPage(driver, url);
+                        ExtractSubPage(driver, url, startDate);
 
-                        driver.Navigate().Back();
+                       driver.Navigate().Back();
                     }
                 }
             }
             string period = string.Empty;
-            WebScraperHelper.SaveToExcel(products, period, Program.ExcelPath, Discounter.Lidl);
+            WebScraperHelper.SaveToExcel(LidlProducts, period, Program.ExcelPath, Discounter.Lidl);
 
             #region verschachtelte Methode(n)
             // Extrahiere die Seite, wo jeweils alle Produkte stehen
-            static void ExtractSubPage(IWebDriver driver, string url)
+            static void ExtractSubPage(IWebDriver driver, string url, string startDate)
             {
                 ScrollThroughPage(driver, 300, 1000, 100);
 
@@ -171,7 +176,7 @@ namespace LookForSpecialOffers
                 //    "and contains(@class, 'ATheCampaign__SectionWrapper--relative')]";
 
                 string searchname = ".//section[contains(@class, 'ATheCampaign__SectionWrapper') " +
-                     "and contains(@class, 'APageRoot__Section')]"; 
+                     "and contains(@class, 'APageRoot__Section')]";
 
                 ReadOnlyCollection<IWebElement?>? sections = null;
                 try
@@ -202,7 +207,7 @@ namespace LookForSpecialOffers
                     try
                     {
                         //ol = section.FindElement(By.XPath(".//div//div//ol"));
-                        ol = (IWebElement?)Searching(section, driver, "./div/div/ol", KindOfSearchElement.FindElementByXPath,500,1);
+                        ol = (IWebElement?)Searching(section, driver, "./div/div/ol", KindOfSearchElement.FindElementByXPath, 500, 1);
                         Console.WriteLine($"ol Element von der section mit der id: {section.GetAttribute("id")} gefunden.");
                     }
                     catch
@@ -287,20 +292,20 @@ namespace LookForSpecialOffers
                             //    ("./div[contains(@class, 'content')]"));
                             if (productInfoContainer != null)
                             {
-                                content = (IWebElement?)Searching(productInfoContainer, driver, 
+                                content = (IWebElement?)Searching(productInfoContainer, driver,
                                     "./div[contains(@class, 'content')]",
                                     KindOfSearchElement.FindElementByXPath, 500, 2);
                             }
                         }
-                        catch 
+                        catch
                         {
                         }
 
                         string articleName = WebUtility.HtmlDecode(content?.FindElement(By.XPath
-                            ("./h2"))?.Text ??"");
+                            ("./h2"))?.Text ?? "");
 
                         string badge = WebUtility.HtmlDecode(content?.FindElement(By.XPath
-                            ("./div[contains(@class, 'text')]"))?.Text ??"");
+                            ("./div[contains(@class, 'text')]"))?.Text ?? "");
 
                         //test
                         if (articleName.ToLower().Contains("rotkäppchen"))
@@ -335,21 +340,24 @@ namespace LookForSpecialOffers
                             }
                             catch
                             {
-                                Console.WriteLine("Beschreibung nicht vorhanden");
+                                //Console.WriteLine("Beschreibung nicht vorhanden");
                             }
                         }
 
                         // Es kann sein, dass keine kg Preise ermittelt bzw. gefunden werden konnten.
+                        
                         if (articlePricesPerKg.Count > 0)
                         {
                             foreach (double articlePricePerKg in articlePricesPerKg)
                             {
-                                products.Add(new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, badge, string.Empty));
+                                var product = new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, badge, startDate);
+                                LidlProducts.Add(product);
                             }
                         }
                         else
                         {
-                            products.Add(new Product(articleName, description, oldPrice, newPrice, 0, string.Empty, string.Empty));
+                            var product = new Product(articleName, description, oldPrice, newPrice, 0, badge, startDate);
+                            LidlProducts.Add(product);
                         }
                     }
                 }
@@ -498,14 +506,14 @@ namespace LookForSpecialOffers
             }
             // Suche falls vorhanden den Button, welcher alle Unterseiten anzeigen lässt.
             // Dieser erscheint nur dann, wenn besonders viele Unterseiten vorhanden sind.
-            static void ClickShowMoreBtn(IWebDriver driver)
+            static void ClickShowMoreBtn(IWebDriver driver, int waitTime = 2)
             {
                 IWebElement? showMoreBtn = null;
 
                 try
                 {
                     showMoreBtn = (IWebElement?)Searching(driver, ".AMoreHeroStageItems__ToggleButton-label",
-                        KindOfSearchElement.FindElementByCssSelector, 500, 1);
+                        KindOfSearchElement.FindElementByCssSelector, 500, waitTime);
                 }
                 catch
                 {
@@ -516,6 +524,19 @@ namespace LookForSpecialOffers
                 {
                     ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", showMoreBtn);
                 }
+            }
+
+            static void ClickAcceptCookieBtn(IWebDriver driver, int waitTime = 2)
+            {
+                IWebElement? cookieAcceptBtn = null;
+                try
+                {
+                    cookieAcceptBtn = (IWebElement?)Searching(driver, "onetrust-accept-btn-handler",
+                    KindOfSearchElement.FindElementByID, 500, waitTime);
+                }
+                catch { }
+
+                cookieAcceptBtn?.Click();
             }
             #endregion
         }

@@ -19,17 +19,18 @@ using System.Net.Mail;
 using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using static LookForSpecialOffers.WebScraperHelper;
 //Bugs:
-// - Ermittelt nicht den richtigen Wert für die Höhe von der Webseite
-// - Die Standorte werden nicht berücksichtigt, was bedeutet, dass keine lokalen Angebote gespeichert werden. Möglicher Ansatz: Wenn die webseite geladen wird und ganz nach unten gescrollt
-//   wird, dann erscheint zum einen ein button, den man drücken muss, um alle cookies zu bestätigen und zum andreen ein Fenster zur Standorteingabe. Dies muss man wohl selbst ausfüllen.
+// - Per Mail bekommt man nicht mitgeteilt, vom welchen Anbieter das Sonderangebot zur Verfügung steht. 
 
 //todo:
 // - Den User eventuell darauf hinweisen, dass die Excel Tabelle geschlossen werden muss, während das Programm läuft, sonst kann sie nicht mit neuen Daten überschrieben werden.
 // - Andere Discounter hinzufügen.
-// - Benachrichtigung per E-Mail implementieren, wenn bestimmte Angebote einen Wert unterschritten haben.   (erledigt)
-// - eine grafische Oberfläche mit Einstellmöglichkeiten implementieren (mit .NET Maui). Darüber können die vers. Discounter ausgewählt werden, welche bei der Suche berücksichtigt werden sollen,
-//   nach welchen Produkten gesucht werden sollen, welchen Preis sie haben dürfen usw. 
+// - Benachrichtigung per E-Mail implementieren, wenn bestimmte Angebote einen Wert unterschritten haben. (nur für Penny bis jetzt erledigt)
+// - eine grafische Oberfläche mit Einstellmöglichkeiten implementieren (mit .NET Maui). Darüber können die vers.
+//   Discounter ausgewählt werden, welche bei der Suche berücksichtigt werden sollen, nach welchen Produkten gesucht werden
+//   sollen, welchen Preis sie haben dürfen usw. 
+
 namespace LookForSpecialOffers
 {
     static class Program
@@ -39,11 +40,12 @@ namespace LookForSpecialOffers
         #region Testdaten
         static internal List<ProduktFavorite> InterestingProducts { get; set; } = new()
         {
-            new ProduktFavorite("Quark", 2.60),
+            new ProduktFavorite("Speisequark", 2.60),
             new ProduktFavorite("Thunfisch", 5.08),
             new ProduktFavorite("Tomate", 9.50),
             new ProduktFavorite("Orange", 0.99),
-            new ProduktFavorite("Buttermilch", 0.99)
+            new ProduktFavorite("Buttermilch", 0.99),
+            new ProduktFavorite("Äpfel", 1.99)
         };
 
         internal static string ExcelPath { get; set; } = "Angebote.xlsx";
@@ -54,19 +56,31 @@ namespace LookForSpecialOffers
 
         internal static string ZipCode { get; set; } = "01239";
         #endregion
+        internal static bool IsNewOffersAvailable { get; set; } = false;                  // Sind neue Angebote vorhanden? Falls ja, dann soll eine E-Mail verschickt werden
 
         static void Main(string[] args) 
         {
+            Dictionary<Discounter, List<Product>> AllProducts = new Dictionary<Discounter, List<Product>>();
+
             ChromeOptions options = new ChromeOptions();
             //options.AddArgument("--headless");              //öffnet die seiten im hintergrund
             using (IWebDriver driver = new ChromeDriver(options))
             {
-                driver.Manage().Window.Maximize();
-                string periodheadline = WebScraperHelper.ExtractHeadlineFromExcel(ExcelPath);
-                //Penny.ExtractOffers(driver, periodheadline);
+                //driver.Manage().Window.Maximize();
+                //driver.Manage().Window.Minimize();
+                string periodheadline = ExtractHeadlineFromExcel(ExcelPath);
+
+                // Extrahiert die Daten wie Artikelnamen, Preis etc. von bestimmten Webseiten von Discountern und anderen Supermärkten.
+                Penny.ExtractOffers(driver, periodheadline);
                 Lidl.ExtractOffers(driver, periodheadline);
 
-                WebScraperHelper.excelPackage.Dispose();
+                AllProducts[Discounter.Penny] = new List<Product>(Penny.PennyProducts);
+                AllProducts[Discounter.Lidl] = new List<Product>(Lidl.LidlProducts);
+                // diese sollen die alte Liste "AllP" ersetzen.
+
+                InformPerEMail(IsNewOffersAvailable, AllProducts);
+
+                excelPackage.Dispose();
 
                 driver.Quit();
             }
