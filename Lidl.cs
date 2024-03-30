@@ -7,6 +7,7 @@ using OpenQA.Selenium;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
@@ -34,7 +35,7 @@ namespace LookForSpecialOffers
         static string pathMainPage = "https://www.lidl.de/store";
         internal static void ExtractOffers(IWebDriver driver, string oldPeriodHeadline)
         {
-            bool isNewOffersAvailable = false;                  // Sind neue Angebote vom Penny vorhanden? Falls ja, dann soll eine E-Mail verschickt werden
+            List<DetailPage>? detailPages = new List<DetailPage>();
 
             driver.Navigate().GoToUrl(pathMainPage);
 
@@ -44,108 +45,81 @@ namespace LookForSpecialOffers
             ScrollThroughPage(driver, 300, 500, 500);
             IWebElement? main = null;
 
-            try
-            {
-                main = (IWebElement?)Searching(driver,
-                    "[class*='AHeroStageGroup__Body AHeroStageGroup__Body-Current_Sales_Week']",
-                    KindOfSearchElement.FindElementByCssSelector, 500, 1);
-            }
-            catch
-            {
-                Console.WriteLine("Haupt Container nicht gefunden.");
-            }
+            detailPages = CollectDetailPageData();
 
-            if (main == null) { return; }
-
-            ReadOnlyCollection<IWebElement?>? mainDivContainers = null;
-            try
+            if (detailPages != null)
             {
-                mainDivContainers = (ReadOnlyCollection<IWebElement?>?)Searching(main, driver,
-                 "./div/div", KindOfSearchElement.FindElementsByXPath, 500, 1);
-            }
-            catch
-            {
-                Console.WriteLine("Die main Container wurden nicht gefunden.");
-            }
-
-            if (mainDivContainers == null) { return; }
-
-            for (int i = 0; i < mainDivContainers.Count; i++)
-            {
-                if (mainDivContainers[i] == null) { continue; }
-
-                ReadOnlyCollection<IWebElement?>? list = null;
-                try
+                for (int i = 0; i < detailPages.Count; i++)
                 {
-                    IWebElement? ol = (IWebElement?)Searching(mainDivContainers[i], driver, "ol.AHeroStageItems__List",
-                        KindOfSearchElement.FindElementByCssSelector, 500, 1);
-                    if (ol != null)
-                        list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li",
-                            KindOfSearchElement.FindElementsByTagName, 500, 1);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Die Ol im Hauptcontainer wurde nicht gefunden. Error: {ex}");
-                    continue;
-                }
+                    driver.Navigate().GoToUrl(detailPages[i].Url);
 
-                Console.WriteLine($"Die Anzahl der Unterseiten vom Container mit dem Klassennamen: " +
-                    $"{mainDivContainers[i].GetAttribute("class")} und der ID: {mainDivContainers[i].GetAttribute("id")} " +
-                    $"beträgt: " + list?.Count);
-
-                if (list == null) { return; }
-
-                //for (int pageNr = 0; pageNr < list.Count; pageNr++)
-                for (int pageNr = 0; pageNr < 1; pageNr++)
-                {
-                    Console.WriteLine("Seitennummer: " + pageNr);
-                    if (list[pageNr] == null) { continue; }
-
-                    // Ab wann startet das Angebot
-                    string startDate = string.Empty;
-                    try
-                    {
-                        startDate = ((IWebElement?)Searching(list[pageNr], driver,
-                        "./a/div[contains(@class,'Details')]/p",
-                        KindOfSearchElement.FindElementByXPath, 500, 1))?.Text ?? "";
-                    }
-                    catch { Console.WriteLine("Datum vom Beginn des Angebots nicht gefunden."); }
-
-
-                    IWebElement? aTag = null;
-
-                    try
-                    {
-                        aTag = (IWebElement?)Searching(list[pageNr], driver, "./a", KindOfSearchElement.FindElementByXPath, 500, 1);
-                    }
-                    catch
-                    {
-                        Console.WriteLine("Das Element mit dem Tag '<a>' wurde nicht gefunden.");
-                    }
-
-                    string url = string.Empty;
-                    if (aTag != null)
-                    {
-                        url = aTag.GetAttribute("href");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Das HTML Element 'a' wurde nicht gefunden");
-                    }
-
-                    if (!string.IsNullOrEmpty(url))
-                    {
-                        driver.Navigate().GoToUrl(url);
-
-                        // Unterseite extrahieren
-                        ExtractSubPage(driver, url, startDate);
-
-                       driver.Navigate().Back();
-                    }
+                    // Unterseite extrahieren
+                    ExtractSubPage(driver, detailPages[i].Url, detailPages[i].Info);
                 }
             }
+            // Sucht die URL und die Infos von jeder Unterseite heraus, welche den Beginn des Angebots idr. beinhalten.
+            
             string period = string.Empty;
             WebScraperHelper.SaveToExcel(LidlProducts, period, Program.ExcelPath, Discounter.Lidl);
+
+            List<DetailPage>? CollectDetailPageData()
+            {
+                List<DetailPage> detailPages = new List<DetailPage>();
+
+                main = (IWebElement?)Searching(driver,
+                    "[class*='AHeroStageGroup__Body AHeroStageGroup__Body-Current_Sales_Week']",
+                    KindOfSearchElement.FindElementByCssSelector, 500, 1, "Haupt Container nicht gefunden.");
+                
+                if (main == null) { return null; }
+
+                ReadOnlyCollection<IWebElement?>? mainDivContainers = (ReadOnlyCollection<IWebElement?>?)Searching(main, driver,
+                    "./div/div", KindOfSearchElement.FindElementsByXPath, 500, 1, "Die Haupt Container, wo sich alle Unterseiten befinden, wurden nicht gefunden.");
+                
+                if (mainDivContainers == null) { return null; }
+
+                for (int i = 0; i < mainDivContainers.Count; i++)
+                {
+                    if (mainDivContainers[i] == null) { continue; }
+
+                    ReadOnlyCollection<IWebElement?>? list = null;
+                    
+                    IWebElement? ol = (IWebElement?)Searching(mainDivContainers[i], driver, "ol.AHeroStageItems__List",
+                        KindOfSearchElement.FindElementByCssSelector, 500, 2);
+                    if (ol == null) { return null; };
+
+                    list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li",
+                        KindOfSearchElement.FindElementsByTagName, 500, 1);
+                    
+                    Console.WriteLine($"Die Anzahl der Unterseiten vom Container mit dem Klassennamen: " +
+                        $"{mainDivContainers[i].GetAttribute("class")} und der ID: {mainDivContainers[i].GetAttribute("id")} " +
+                        $"beträgt: " + list?.Count);
+
+                    if (list == null) { return null; }
+
+                    //for (int pageNr = 0; pageNr < 1; pageNr++)
+                    for (int pageNr = 0; pageNr < list.Count; pageNr++)
+                    {
+                        Console.WriteLine("Seitennummer: " + pageNr);
+                        if (list[pageNr] == null) { continue; }
+
+                        // Ab wann startet das Angebot
+                        string startDate = ((IWebElement?)Searching(list[pageNr], driver,
+                        "./a/div[contains(@class,'Details')]/p", KindOfSearchElement.FindElementByXPath, 500, 1, 
+                        "Datum vom Beginn des Angebots nicht gefunden."))?.Text ?? "";
+
+                        IWebElement? aTag = (IWebElement?)Searching(list[pageNr], driver, "./a", KindOfSearchElement.FindElementByXPath, 500, 1);
+                        
+                        string? url = aTag?.GetAttribute("href");
+
+                        if (!string.IsNullOrEmpty(url))
+                        {
+                            detailPages.Add(new DetailPage(url, startDate));
+                        }
+                    }
+                }
+
+                return detailPages;
+            }
 
             #region verschachtelte Methode(n)
             // Extrahiere die Seite, wo jeweils alle Produkte stehen
@@ -154,20 +128,13 @@ namespace LookForSpecialOffers
                 ScrollThroughPage(driver, 300, 1000, 100);
 
                 IWebElement? mainDivContainer = null;       //Hauptcontainer
-
-                try
-                {
-                    mainDivContainer = (IWebElement?)Searching(driver, "//div[@class = 'ATheCampaign__Page']",
-                        KindOfSearchElement.FindElementByXPath, 500, 1);  //Sucht solange nach diesen Element, bis es erschienen ist oder die max. Zeit überschritten wurde
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error{ex.Message}");
-                }
+                string className = "ATheCampaign__Page";
+                
+                mainDivContainer = (IWebElement?)Searching(driver, $"//div[@class = '{className}']",
+                    KindOfSearchElement.FindElementByXPath, 500, 2, $"Der Div Container mit dem Klassennamen {className} wurde nicht gefunden.");  //Sucht solange nach diesen Element, bis es erschienen ist oder die max. Zeit überschritten wurde
 
                 if (mainDivContainer == null)
                 {
-                    Console.WriteLine($"Main Container auf folgender Unterseite nicht gefunden: {url}");
                     return;
                 }
                 // ist wohl zu speziell, da auf der deluxe Seite die Sections etwas anders heißen.
@@ -177,18 +144,10 @@ namespace LookForSpecialOffers
 
                 string searchname = ".//section[contains(@class, 'ATheCampaign__SectionWrapper') " +
                      "and contains(@class, 'APageRoot__Section')]";
-
-                ReadOnlyCollection<IWebElement?>? sections = null;
-                try
-                {
-                    sections = (ReadOnlyCollection<IWebElement?>?)Searching(mainDivContainer,
-                        driver, searchname, KindOfSearchElement.FindElementsByXPath, 500, 2);
-                }
-                catch
-                {
-                    Console.WriteLine("Es wurden keine Sections gefunden auf dieser Seite.");
-                }
-
+                
+                ReadOnlyCollection<IWebElement?>? sections = (ReadOnlyCollection<IWebElement?>?)Searching(mainDivContainer,
+                    driver, searchname, KindOfSearchElement.FindElementsByXPath, 500, 2);
+                
                 //Debug
                 Console.WriteLine($"anzahl sections: {sections?.Count()}");
                 //info
@@ -202,56 +161,23 @@ namespace LookForSpecialOffers
                 foreach (var section in sections)
                 {
                     if (section == null) continue;
+                    
+                    IWebElement? ol = (IWebElement?)Searching(section, driver, "./div/div/ol", KindOfSearchElement.FindElementByXPath, 500, 1, 
+                        $"ol Element von der section mit der id: {section.GetAttribute("id")} nicht gefunden.");
 
-                    IWebElement? ol = null;
-                    try
+                    if (ol == null) 
                     {
-                        //ol = section.FindElement(By.XPath(".//div//div//ol"));
-                        ol = (IWebElement?)Searching(section, driver, "./div/div/ol", KindOfSearchElement.FindElementByXPath, 500, 1);
-                        Console.WriteLine($"ol Element von der section mit der id: {section.GetAttribute("id")} gefunden.");
-                    }
-                    catch
-                    {
-                        Console.WriteLine($"ol Element von der section mit der id: {section.GetAttribute("id")} nicht gefunden.");
                         continue;
                     }
-
-                    ReadOnlyCollection<IWebElement?>? liElements = null;
-
-                    try
+                    else
                     {
-                        liElements = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver,
-                            "li.ACampaignGrid__item.ACampaignGrid__item--product",
-                            KindOfSearchElement.FindElementsByCssSelector, 500, 1);
-                    }
-                    catch
-                    {
-                        Console.WriteLine($"in der Section mit der id {section.GetAttribute("id")} wurden keine Produkte gefunden");
+                        Console.WriteLine($"ol Element von der section mit der id: {section.GetAttribute("id")} gefunden.");
                     }
 
-                    ReadOnlyCollection<IWebElement?>? FindListOfProducts(string name)
-                    {
-                        try
-                        {
-                            // Versuche, das Element zu finden
-                            ReadOnlyCollection<IWebElement?>? elements = ol.FindElements(By.CssSelector("li.ACampaignGrid__item.ACampaignGrid__item--product div div div.product-grid-box.grid-box"));
+                    ReadOnlyCollection<IWebElement?>? liElements = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver,
+                        "li.ACampaignGrid__item.ACampaignGrid__item--product",
+                        KindOfSearchElement.FindElementsByCssSelector, 500, 1);
 
-                            // Überprüfe, ob die Liste leer ist
-                            if (elements.Count == 0)
-                            {
-                                // Das Element wurde nicht gefunden, gib null zurück
-                                return null;
-                            }
-
-                            // Das Element wurde gefunden, gib die Liste der Elemente zurück
-                            return elements;
-                        }
-                        catch
-                        {
-                            // Falls eine NoSuchElementException auftritt, gib null zurück
-                            return null;
-                        }
-                    }
 
                     if (liElements == null) { Console.WriteLine("produkt liste ist null."); return; }
                     else if (liElements.Count() == 0) { Console.WriteLine("produkt liste ist leer."); return; }
@@ -259,47 +185,19 @@ namespace LookForSpecialOffers
                     foreach (var liElement in liElements)
                     {
                         if (liElement == null) { continue; }
-
-                        IWebElement? productInfoContainer = null;
-
-                        try
-                        {
-                            //productInfoContainer = (IWebElement?)Searching(liElement, driver,
-                            //    ".product-grid-box.grid-box", KindOfSearchElement.FindElementByCssSelector, 500,1);
-                            //productInfoContainer = (IWebElement?)Searching(liElement, driver,
-                            //    ".//div[contains(@class, 'product-grid-box grid-box')", 
-                            //    KindOfSearchElement.FindElementByXPath, 500, 2);
-                            productInfoContainer = (IWebElement?)Searching(liElement, driver,
-                                "./div/div/div[contains(@class, 'product-grid-box grid-box')]",
-                                KindOfSearchElement.FindElementByXPath, 500, 2);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"div container für das Produkt nicht gefunden. Fehlermeldung: {ex}");
-                            continue;
-                        }
-
-                        // Extrahiere alle Informationen
-                        //section[contains(@class, 'ATheCampaign__SectionWrapper')
-                        //string articleName = WebUtility.HtmlDecode(productInfoContainer.FindElement(By.XPath
-                        //    (".//a")).GetAttribute("aria-label"));
+                        
+                        IWebElement? productInfoContainer = (IWebElement?)Searching(liElement, driver,
+                            "./div/div/div[contains(@class, 'product-grid-box grid-box')]",
+                            KindOfSearchElement.FindElementByXPath, 500, 2);
 
                         //enthält infos wie artikelname und die Beschreibung.
                         IWebElement? content = null;
-                        try
-                        {
-                            //content = productInfoContainer?.FindElement(By.XPath
-                            //    ("./div[contains(@class, 'content')]"));
-                            if (productInfoContainer != null)
-                            {
-                                content = (IWebElement?)Searching(productInfoContainer, driver,
-                                    "./div[contains(@class, 'content')]",
-                                    KindOfSearchElement.FindElementByXPath, 500, 2);
-                            }
-                        }
-                        catch
-                        {
-                        }
+                       
+                        if (productInfoContainer == null) { continue; }
+
+                        content = (IWebElement?)Searching(productInfoContainer, driver,
+                            "./div[contains(@class, 'content')]",
+                            KindOfSearchElement.FindElementByXPath, 500, 2);
 
                         string articleName = WebUtility.HtmlDecode(content?.FindElement(By.XPath
                             ("./h2"))?.Text ?? "");
@@ -315,33 +213,32 @@ namespace LookForSpecialOffers
 
                         double newPrice = 0, oldPrice = 0;
                         List<double> articlePricesPerKg = new List<double>();
-                        bool isPriceInCent = false;
+                        //bool isPriceInCent = false;
 
                         string oldPriceText = string.Empty, newPriceText = string.Empty, articlePricePerKgText = string.Empty,
                             description = string.Empty;
 
                         // suche nach dem neuen (aktuellen) Preis
                         List<double> temp = new List<double>();
-                        if (productInfoContainer != null)
+                        if (productInfoContainer == null) { continue; }
+
+                        temp = ConvertPrices(productInfoContainer, ".m-price__price.m-price__price--small", newPriceText);
+                        if (temp.Count > 0)
+                            newPrice = temp[0];  // Es kommt nur 1 aktueller Preis vor
+                                                    // suche nach dem vorherigen Preis, welcher durchgestrichen dargestellt wird.
+                        temp = ConvertPrices(productInfoContainer, ".strikethrough.m-price__rrp", oldPriceText);
+                        if (temp.Count > 0)
+                            oldPrice = temp[0];  // Es kommt nur 1 vorheriger Preis vor
+
+                        articlePricesPerKg = ConvertPrices(productInfoContainer, ".price-footer", articlePricePerKgText, newPrice, true);
+
+                        try
                         {
-                            temp = ConvertPrices(productInfoContainer, ".m-price__price.m-price__price--small", newPriceText);
-                            if (temp.Count > 0)
-                                newPrice = temp[0];  // Es kommt nur 1 aktueller Preis vor
-                                                     // suche nach dem vorherigen Preis, welcher durchgestrichen dargestellt wird.
-                            temp = ConvertPrices(productInfoContainer, ".strikethrough.m-price__rrp", oldPriceText);
-                            if (temp.Count > 0)
-                                oldPrice = temp[0];  // Es kommt nur 1 vorheriger Preis vor
-
-                            articlePricesPerKg = ConvertPrices(productInfoContainer, ".price-footer", articlePricePerKgText, newPrice, true);
-
-                            try
-                            {
-                                description = productInfoContainer.FindElement(By.CssSelector(".product-grid-box__amount")).Text.Trim();
-                            }
-                            catch
-                            {
-                                //Console.WriteLine("Beschreibung nicht vorhanden");
-                            }
+                            description = productInfoContainer.FindElement(By.CssSelector(".product-grid-box__amount")).Text.Trim();
+                        }
+                        catch
+                        {
+                            //Console.WriteLine("Beschreibung nicht vorhanden");
                         }
 
                         // Es kann sein, dass keine kg Preise ermittelt bzw. gefunden werden konnten.
@@ -508,34 +405,18 @@ namespace LookForSpecialOffers
             // Dieser erscheint nur dann, wenn besonders viele Unterseiten vorhanden sind.
             static void ClickShowMoreBtn(IWebDriver driver, int waitTime = 2)
             {
-                IWebElement? showMoreBtn = null;
-
-                try
-                {
-                    showMoreBtn = (IWebElement?)Searching(driver, ".AMoreHeroStageItems__ToggleButton-label",
-                        KindOfSearchElement.FindElementByCssSelector, 500, waitTime);
-                }
-                catch
-                {
-                    Console.WriteLine($"Der Button, welcher mehr Unterseiten anzeigen lässt, wurde nicht gefunden.");
-                }
-
-                if (showMoreBtn != null)
-                {
-                    ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", showMoreBtn);
-                }
+                IWebElement? showMoreBtn = (IWebElement?)Searching(driver, ".AMoreHeroStageItems__ToggleButton-label",
+                    KindOfSearchElement.FindElementByCssSelector, 500, waitTime);
+                
+                if (showMoreBtn == null) { return; }
+                ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", showMoreBtn);
             }
 
             static void ClickAcceptCookieBtn(IWebDriver driver, int waitTime = 2)
             {
-                IWebElement? cookieAcceptBtn = null;
-                try
-                {
-                    cookieAcceptBtn = (IWebElement?)Searching(driver, "onetrust-accept-btn-handler",
-                    KindOfSearchElement.FindElementByID, 500, waitTime);
-                }
-                catch { }
-
+                IWebElement? cookieAcceptBtn = (IWebElement?)Searching(driver, "onetrust-accept-btn-handler",
+                KindOfSearchElement.FindElementByID, 500, waitTime);
+               
                 cookieAcceptBtn?.Click();
             }
             #endregion

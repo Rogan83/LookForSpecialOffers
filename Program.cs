@@ -71,7 +71,7 @@ namespace LookForSpecialOffers
                 string periodheadline = ExtractHeadlineFromExcel(ExcelPath);
 
                 // Extrahiert die Daten wie Artikelnamen, Preis etc. von bestimmten Webseiten von Discountern und anderen Supermärkten.
-                Penny.ExtractOffers(driver, periodheadline);
+                //Penny.ExtractOffers(driver, periodheadline);
                 Lidl.ExtractOffers(driver, periodheadline);
 
                 AllProducts[Discounter.Penny] = new List<Product>(Penny.PennyProducts);
@@ -93,7 +93,7 @@ namespace LookForSpecialOffers
             HtmlNode? siteHeaderWrapperNode = null;
             try
             {
-                siteHeaderWrapperNode = (HtmlNode?)WebScraperHelper.Searching(driver, searchName, KindOfSearchElement.SelectSingleNode);  //Sucht solange nach diesen Element, bis es erschienen ist.
+                siteHeaderWrapperNode = (HtmlNode?)Searching(driver, searchName, KindOfSearchElement.SelectSingleNode);  //Sucht solange nach diesen Element, bis es erschienen ist.
             }
             catch (Exception ex)
             {
