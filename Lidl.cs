@@ -31,11 +31,11 @@ namespace LookForSpecialOffers
 {
     internal class Lidl
     {
-        internal static List<Product> LidlProducts = new();
+        internal static List<Product> Products = new();
         static string pathMainPage = "https://www.lidl.de/store";
         internal static void ExtractOffers(IWebDriver driver, string oldPeriodHeadline)
         {
-            List<DetailPage>? detailPages = new List<DetailPage>();
+            List<DetailPage>? detailPages = new();
 
             driver.Navigate().GoToUrl(pathMainPage);
 
@@ -43,7 +43,6 @@ namespace LookForSpecialOffers
             ClickShowMoreBtn(driver, 3);
 
             ScrollThroughPage(driver, 300, 500, 500);
-            IWebElement? main = null;
 
             detailPages = CollectDetailPageData();
 
@@ -53,28 +52,32 @@ namespace LookForSpecialOffers
                 {
                     driver.Navigate().GoToUrl(detailPages[i].Url);
 
-                    // Unterseite extrahieren
+                    // Alle Produktdaten von den Unterseiten extrahieren
                     ExtractSubPage(driver, detailPages[i].Url, detailPages[i].Info);
                 }
             }
-            // Sucht die URL und die Infos von jeder Unterseite heraus, welche den Beginn des Angebots idr. beinhalten.
             
             string period = string.Empty;
-            WebScraperHelper.SaveToExcel(LidlProducts, period, Program.ExcelPath, Discounter.Lidl);
+            SaveToExcel(Products, period, Program.ExcelPath, Discounter.Lidl);
 
+            Program.AllProducts[Discounter.Lidl] = new List<Product>(Products);
+
+            #region Nested Methods
+
+            // Sucht die URL und die Infos von jeder Unterseite heraus, welche den Beginn des Angebots idr. beinhalten.
             List<DetailPage>? CollectDetailPageData()
             {
                 List<DetailPage> detailPages = new List<DetailPage>();
 
-                main = (IWebElement?)Searching(driver,
+                IWebElement? main = (IWebElement?)Searching(driver,
                     "[class*='AHeroStageGroup__Body AHeroStageGroup__Body-Current_Sales_Week']",
                     KindOfSearchElement.FindElementByCssSelector, 500, 1, "Haupt Container nicht gefunden.");
-                
+
                 if (main == null) { return null; }
 
                 ReadOnlyCollection<IWebElement?>? mainDivContainers = (ReadOnlyCollection<IWebElement?>?)Searching(main, driver,
                     "./div/div", KindOfSearchElement.FindElementsByXPath, 500, 1, "Die Haupt Container, wo sich alle Unterseiten befinden, wurden nicht gefunden.");
-                
+
                 if (mainDivContainers == null) { return null; }
 
                 for (int i = 0; i < mainDivContainers.Count; i++)
@@ -82,14 +85,14 @@ namespace LookForSpecialOffers
                     if (mainDivContainers[i] == null) { continue; }
 
                     ReadOnlyCollection<IWebElement?>? list = null;
-                    
+
                     IWebElement? ol = (IWebElement?)Searching(mainDivContainers[i], driver, "ol.AHeroStageItems__List",
                         KindOfSearchElement.FindElementByCssSelector, 500, 2);
                     if (ol == null) { return null; };
 
                     list = (ReadOnlyCollection<IWebElement?>?)Searching(ol, driver, "li",
                         KindOfSearchElement.FindElementsByTagName, 500, 1);
-                    
+
                     Console.WriteLine($"Die Anzahl der Unterseiten vom Container mit dem Klassennamen: " +
                         $"{mainDivContainers[i].GetAttribute("class")} und der ID: {mainDivContainers[i].GetAttribute("id")} " +
                         $"beträgt: " + list?.Count);
@@ -104,11 +107,11 @@ namespace LookForSpecialOffers
 
                         // Ab wann startet das Angebot
                         string startDate = ((IWebElement?)Searching(list[pageNr], driver,
-                        "./a/div[contains(@class,'Details')]/p", KindOfSearchElement.FindElementByXPath, 500, 1, 
+                        "./a/div[contains(@class,'Details')]/p", KindOfSearchElement.FindElementByXPath, 500, 1,
                         "Datum vom Beginn des Angebots nicht gefunden."))?.Text ?? "";
 
                         IWebElement? aTag = (IWebElement?)Searching(list[pageNr], driver, "./a", KindOfSearchElement.FindElementByXPath, 500, 1);
-                        
+
                         string? url = aTag?.GetAttribute("href");
 
                         if (!string.IsNullOrEmpty(url))
@@ -120,8 +123,6 @@ namespace LookForSpecialOffers
 
                 return detailPages;
             }
-
-            #region verschachtelte Methode(n)
             // Extrahiere die Seite, wo jeweils alle Produkte stehen
             static void ExtractSubPage(IWebDriver driver, string url, string startDate)
             {
@@ -248,13 +249,13 @@ namespace LookForSpecialOffers
                             foreach (double articlePricePerKg in articlePricesPerKg)
                             {
                                 var product = new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, badge, startDate);
-                                LidlProducts.Add(product);
+                                Products.Add(product);
                             }
                         }
                         else
                         {
                             var product = new Product(articleName, description, oldPrice, newPrice, 0, badge, startDate);
-                            LidlProducts.Add(product);
+                            Products.Add(product);
                         }
                     }
                 }
@@ -401,6 +402,7 @@ namespace LookForSpecialOffers
                     }
                 }
             }
+
             // Suche falls vorhanden den Button, welcher alle Unterseiten anzeigen lässt.
             // Dieser erscheint nur dann, wenn besonders viele Unterseiten vorhanden sind.
             static void ClickShowMoreBtn(IWebDriver driver, int waitTime = 2)

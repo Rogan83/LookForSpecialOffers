@@ -587,8 +587,6 @@ namespace LookForSpecialOffers
             }
         }
 
-        
-
         /// <summary>
         /// Versucht, ein bestimmtes Element zu finden und versucht es in gewissen Zeitabständen erneut, falls dieses Element nicht gefunden wird.
         /// </summary>
@@ -599,7 +597,8 @@ namespace LookForSpecialOffers
         /// <param name="pollingIntervalTime"></param>
         /// <param name="maxWaitTime"></param>
         /// <returns></returns>
-        internal static object? Searching(ShadowRoot shadowRoot, IWebDriver driver, string searchName, KindOfSearchElement searchElement, int pollingIntervalTime = 500, int maxWaitTime = 10)
+        internal static object? Searching(ShadowRoot shadowRoot, IWebDriver driver, string searchName, KindOfSearchElement searchElement, 
+            int pollingIntervalTime = 500, int maxWaitTime = 10, string noSuchFoundExMsg = "")
         {
             object? element = null;
             WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(maxWaitTime))
@@ -608,152 +607,165 @@ namespace LookForSpecialOffers
             };
             wait.IgnoreExceptionTypes(typeof(ElementNotInteractableException));
 
-            var main = wait.Until(d =>
+            try
             {
-                switch (searchElement)
+                wait.Until(d =>
                 {
-                    case KindOfSearchElement.SelectSingleNode:
-                        try
-                        {
-                            HtmlDocument doc = new HtmlDocument();
-                            doc.LoadHtml(driver.PageSource);
-                            if (doc != null)
-                                element = doc.DocumentNode.SelectSingleNode(searchName);
+                    switch (searchElement)
+                    {
+                        case KindOfSearchElement.SelectSingleNode:
+                            try
+                            {
+                                HtmlDocument doc = new HtmlDocument();
+                                doc.LoadHtml(driver.PageSource);
+                                if (doc != null)
+                                    element = doc.DocumentNode.SelectSingleNode(searchName);
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
-                            return false;
-                        }
-                    case KindOfSearchElement.SelectNodes:
-                        try
-                        {
-                            HtmlDocument doc = new HtmlDocument();
-                            doc.LoadHtml(driver.PageSource);
-                            if (doc != null)
-                                element = doc.DocumentNode.SelectNodes(searchName);
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        case KindOfSearchElement.SelectNodes:
+                            try
+                            {
+                                HtmlDocument doc = new HtmlDocument();
+                                doc.LoadHtml(driver.PageSource);
+                                if (doc != null)
+                                    element = doc.DocumentNode.SelectNodes(searchName);
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
-                            return false;
-                        }
-                    case KindOfSearchElement.FindElementByCssSelector:
-                        try
-                        {
-                            element = shadowRoot.FindElement(By.CssSelector(searchName));
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        case KindOfSearchElement.FindElementByCssSelector:
+                            try
+                            {
+                                element = shadowRoot.FindElement(By.CssSelector(searchName));
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
-                            return false;
-                        }
-                    case KindOfSearchElement.FindElementsByCssSelector:
-                        try
-                        {
-                            element = shadowRoot.FindElements(By.CssSelector(searchName));
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        case KindOfSearchElement.FindElementsByCssSelector:
+                            try
+                            {
+                                element = shadowRoot.FindElements(By.CssSelector(searchName));
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
-                            return false;
-                        }
-                    case KindOfSearchElement.FindElementByClassName:
-                        try
-                        {
-                            element = shadowRoot.FindElement(By.ClassName(searchName));
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        case KindOfSearchElement.FindElementByClassName:
+                            try
+                            {
+                                element = shadowRoot.FindElement(By.ClassName(searchName));
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
-                            return false;
-                        }
-                    case KindOfSearchElement.FindElementsByClassName:
-                        try
-                        {
-                            element = shadowRoot.FindElements(By.ClassName(searchName));
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        case KindOfSearchElement.FindElementsByClassName:
+                            try
+                            {
+                                element = shadowRoot.FindElements(By.ClassName(searchName));
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
-                            return false;
-                        }
-                    case KindOfSearchElement.FindElementByXPath:
-                        try
-                        {
-                            element = shadowRoot.FindElement(By.XPath(searchName));
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        case KindOfSearchElement.FindElementByXPath:
+                            try
+                            {
+                                element = shadowRoot.FindElement(By.XPath(searchName));
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
-                            return false;
-                        }
-                    case KindOfSearchElement.FindElementsByXPath:
-                        try
-                        {
-                            element = shadowRoot.FindElements(By.XPath(searchName));
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        case KindOfSearchElement.FindElementsByXPath:
+                            try
+                            {
+                                element = shadowRoot.FindElements(By.XPath(searchName));
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
-                            return false;
-                        }
-                    case KindOfSearchElement.FindElementByTagName:
-                        try
-                        {
-                            element = shadowRoot.FindElement(By.TagName(searchName));
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        case KindOfSearchElement.FindElementByTagName:
+                            try
+                            {
+                                element = shadowRoot.FindElement(By.TagName(searchName));
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
-                            return false;
-                        }
-                    case KindOfSearchElement.FindElementsByTagName:
-                        try
-                        {
-                            element = shadowRoot.FindElements(By.TagName(searchName));
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        case KindOfSearchElement.FindElementsByTagName:
+                            try
+                            {
+                                element = shadowRoot.FindElements(By.TagName(searchName));
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
-                            return false;
-                        }
-                    case KindOfSearchElement.FindElementByID:
-                        try
-                        {
-                            element = shadowRoot.FindElement(By.Id(searchName));
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        case KindOfSearchElement.FindElementByID:
+                            try
+                            {
+                                element = shadowRoot.FindElement(By.Id(searchName));
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
-                            return false;
-                        }
-                    case KindOfSearchElement.FindElementsByID:
-                        try
-                        {
-                            element = shadowRoot.FindElements(By.Id(searchName));
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        case KindOfSearchElement.FindElementsByID:
+                            try
+                            {
+                                element = shadowRoot.FindElements(By.Id(searchName));
 
-                            return element != null;
-                        }
-                        catch (NoSuchElementException)
-                        {
+                                return element != null;
+                            }
+                            catch (NoSuchElementException)
+                            {
+                                return false;
+                            }
+                        default:
                             return false;
-                        }
-                    default:
-                        return false;
-                }
-            });
+                    }
+                });
+            }
+            catch (NoSuchElementException)
+            {
+                Console.WriteLine("Element not found.");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{noSuchFoundExMsg} Error: {ex.Message}");
+                return null;
+            }
             return element;
         }
 
@@ -997,20 +1009,16 @@ namespace LookForSpecialOffers
                     SendEMail(Program.EMail, subject, body);
                 }
             }
-            static void SendEMail(string mailAdress, string subject, string body)
+            void SendEMail(string mailAdress, string subject, string body)
             {
                 // E-Mail-Einstellungen
                 string senderEmail = "d.rothweiler83@gmx.de";
                 string receiverEmail = mailAdress;
-                //string receiverEmail = "d.rothweiler83@gmx.de";
 
                 // SMTP-Server-Einstellungen
-                //string smtpServer = "smtp.mail.yahoo.com";
                 string smtpServer = "mail.gmx.net";
                 int smtpPort = 587; // Standard-Port für SMTP ist 587
-                                    //string smtpUsername = "d.rothweiler@yahoo.de";
                 string smtpUsername = "d.rothweiler83@gmx.de";
-                //string smtpPassword = "41149512-Dominic";
                 string smtpPassword = "41149512dominic";
 
                 // Erstellen Sie eine neue SMTP-Clientinstanz

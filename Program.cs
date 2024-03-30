@@ -47,7 +47,7 @@ namespace LookForSpecialOffers
             new ProduktFavorite("Buttermilch", 0.99),
             new ProduktFavorite("Äpfel", 1.99)
         };
-
+        static internal Dictionary<Discounter, List<Product>> AllProducts = new Dictionary<Discounter, List<Product>>();
         internal static string ExcelPath { get; set; } = "Angebote.xlsx";
 
         internal static string EMail { get; set; } = "d.rothweiler@yahoo.de";
@@ -60,8 +60,6 @@ namespace LookForSpecialOffers
 
         static void Main(string[] args) 
         {
-            Dictionary<Discounter, List<Product>> AllProducts = new Dictionary<Discounter, List<Product>>();
-
             ChromeOptions options = new ChromeOptions();
             //options.AddArgument("--headless");              //öffnet die seiten im hintergrund
             using (IWebDriver driver = new ChromeDriver(options))
@@ -71,12 +69,8 @@ namespace LookForSpecialOffers
                 string periodheadline = ExtractHeadlineFromExcel(ExcelPath);
 
                 // Extrahiert die Daten wie Artikelnamen, Preis etc. von bestimmten Webseiten von Discountern und anderen Supermärkten.
-                //Penny.ExtractOffers(driver, periodheadline);
-                Lidl.ExtractOffers(driver, periodheadline);
-
-                AllProducts[Discounter.Penny] = new List<Product>(Penny.PennyProducts);
-                AllProducts[Discounter.Lidl] = new List<Product>(Lidl.LidlProducts);
-                // diese sollen die alte Liste "AllP" ersetzen.
+                Penny.ExtractOffers(driver, periodheadline);
+                //Lidl.ExtractOffers(driver, periodheadline);
 
                 InformPerEMail(IsNewOffersAvailable, AllProducts);
 

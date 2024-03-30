@@ -19,7 +19,7 @@ namespace LookForSpecialOffers
 {
     internal static class Penny
     {
-        internal static List<Product> PennyProducts { get; set; } = new();
+        internal static List<Product> Products { get; set; } = new();
         // Extrahiert alle Sonderangebote vom Penny und speichert diese formatiert in eine Excel Tabelle ab.
         internal static void ExtractOffers(IWebDriver driver, string oldPeriodHeadline)
         {
@@ -32,9 +32,8 @@ namespace LookForSpecialOffers
             ScrollThroughPage(driver, 300, 2000, 500);         // Es scheint so, dass es wichtig ist, dass man das herunterscrollen in vielen kleinen Steps einzuteilen, wichtig ist
 
             //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
-            HtmlNode? mainContainer = (HtmlNode?)WebScraperHelper.Searching(driver, "//div[contains(@class, 'tabs__content-area')]", KindOfSearchElement.SelectSingleNode);   //Sucht solange nach diesen Element, bis es erschienen ist.
+            HtmlNode? mainContainer = (HtmlNode?)Searching(driver, "//div[contains(@class, 'tabs__content-area')]", KindOfSearchElement.SelectSingleNode);   //Sucht solange nach diesen Element, bis es erschienen ist.
             
-
             if (mainContainer != null)     //Der maincontainer enthält alles relevantes
             {
                 var mainSection = mainContainer.SelectSingleNode("./section[@class='tabs__content tabs__content--offers t-bg--wild-sand ']");
@@ -42,7 +41,9 @@ namespace LookForSpecialOffers
 
                 foreach (var articleDivContainer in articleDivContainers)
                 {
-                    var offerStartDate = articleDivContainer.Attributes["id"].Value.Replace('-', ' ');  //Ab wann gilt dieses Angebot
+                    var offerStartDate = articleDivContainer.Attributes["id"].Value.Replace('-', ' ').
+                        Replace("ae","ä").Replace("oe","ö").Replace("ue","ü");                          //Ab wann gilt dieses Angebot
+
                     var articleSectionContainers = articleDivContainer.SelectNodes("./section");
 
                     foreach (var articleSectionContainer in articleSectionContainers)
@@ -72,8 +73,6 @@ namespace LookForSpecialOffers
                             string articlePricesPerKg = string.Empty;
                             if (articlePricesPerKgNode != null)
                                 articlePricesPerKg = articlePricesPerKgNode.InnerText;
-
-                            
 
                             string description = articlePricesPerKg.Split('(')[0].Trim();        //extrahiert die Beschreibung, welche vor dem Kilo Preis steht
 
@@ -107,7 +106,7 @@ namespace LookForSpecialOffers
                             foreach (var pricePerKg in pricesPerKg)
                             {
                                 var product = new Product(articleName, description, oldPrice, newPrice, pricePerKg, badge, offerStartDate);
-                                PennyProducts.Add(product);
+                                Products.Add(product);
                             }
                         }
                     }
@@ -129,9 +128,12 @@ namespace LookForSpecialOffers
                 }
 
                 //InformPerEMail(isNewOffersAvailable, pennyProducts);
-                SaveToExcel(PennyProducts, period, Program.ExcelPath, Discounter.Penny);
+                SaveToExcel(Products, period, Program.ExcelPath, Discounter.Penny);
             }
 
+            Program.AllProducts[Discounter.Penny] = new List<Product>(Products);
+
+            #region Nested Methods
             static List<double> ExtractPrices(string input, double newPrice = 0)
             {
                 string pattern = @"(\d+\,\d+)|(\d+\.\d+)|(\.\d+)|(\d+)";
@@ -139,11 +141,7 @@ namespace LookForSpecialOffers
                 Regex regex = new Regex(pattern);
 
                 List<double> prices = new List<double>();
-                // Der Preis (falls vorhanden) ist immer in der Klammer enthalten.
-                // Wenn kein Preis vorhanden ist, dann interessiert diese Info nicht und gibt einen leeren String zurück.
-                //if (!input.Contains("("))           
-                //    return prices;
-
+                
                 // Teile den Eingabetext am "="-Zeichen, wenn vorhanden
                 if (input.ToLower().Contains("="))
                 {
@@ -154,7 +152,6 @@ namespace LookForSpecialOffers
 
                     if (valuePart.Contains('/'))
                     {
-                        
                         MatchCollection matches = regex.Matches(input);
 
                         foreach (Match match in matches)
@@ -220,54 +217,27 @@ namespace LookForSpecialOffers
                 }
             }
 
-            
-
             // Sucht nach den Cookie Button und bestätigt diesen.
             static void ClickCookieButton(IWebDriver driver)
             {
                 // Der Button befindet sich innerhalb der Shadow Root. Dieses kapselt die Elemente, die darin enthalten sind,
                 // d.h. dass die Elemente, die sich darin befinden, von außen geschützt sind. Deswegen muss erst auf den
                 // Shadow Root zugegriffen werden und von dort aus kann nach den Elementen darin gesucht werden.
-                IWebElement? parent = null;
-                try
-                {
-                    //parent = (WebElement)driver.FindElement(By.XPath("//*[@id='usercentrics-root']"));
-                    parent = (IWebElement?)Searching(driver, "//*[@id='usercentrics-root']", KindOfSearchElement.FindElementByXPath,500,10);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"error: {ex}");
-                    return;
-                }
+                string id = "usercentrics-root";
+                IWebElement? parent = (IWebElement?)Searching(driver, $"//*[@id='{id}']", KindOfSearchElement.FindElementByXPath,500,10, 
+                    $"Das Element mit der Id {id} wurde nicht gefunden");
 
                 ShadowRoot shadowRoot = (ShadowRoot)((IJavaScriptExecutor)driver).ExecuteScript("return arguments[0].shadowRoot", parent);
 
                 // Zuerst muss der Cookie Button geklickt werden, weil dieser im Vordergrund ist und das anklicken des Button verhindert, mit dem alle Angebote eingesehen werden können. 
-                //Thread.Sleep(1000);
-                //var CookieAcceptBtn = shadowRoot.FindElement(By.CssSelector(".sc-dcJsrY.iWikWl"));
+                Thread.Sleep(1000);
+                //cookieAcceptBtn = shadowRoot.FindElement(By.CssSelector(".sc-dcJsrY.hCLQdG"));          // der klassenname ändert sich andauernd vom cookie btn. Das muss noch geändert werden.
+                //ReadOnlyCollection<IWebElement?> cookieBtns = shadowRoot.FindElements(By.CssSelector(".sc-dcJsrY"));          // anscheinend ist die erste Klasse von den beiden Klassen immer gleich und nur die 2. Klasse ändert sich
+                string className = ".sc-dcJsrY";
+                ReadOnlyCollection<IWebElement?>? cookieBtns = (ReadOnlyCollection<IWebElement?>?)Searching(shadowRoot, driver, className, 
+                    KindOfSearchElement.FindElementsByCssSelector, 500, 3, $"kein Cookie Button gefunden");
 
-                IWebElement? cookieAcceptBtn = null;
-                ReadOnlyCollection<IWebElement?> cookieBtns = null;
-                try
-                {
-                    Thread.Sleep(1000);
-                    //cookieAcceptBtn = (IWebElement?)WebScraperHelper.Searching(shadowRoot, driver, "//button[@data-testid='uc-accept-all-button']", KindOfSearchElement.FindElementsByXPath);
-                    //cookieAcceptBtn = (IWebElement?)WebScraperHelper.Searching(shadowRoot, driver, "//div", KindOfSearchElement.FindElementByXPath);
-                    //cookieAcceptBtn = shadowRoot.FindElement(By.XPath("./div"));
-                    //cookieAcceptBtn = shadowRoot.FindElement(By.CssSelector(".sc-dcJsrY.hCLQdG"));          // der klassenname ändert sich andauernd vom cookie btn. Das muss noch geändert werden.
-                    cookieBtns = shadowRoot.FindElements(By.CssSelector(".sc-dcJsrY"));          // der klassenname ändert sich andauernd vom cookie btn. Das muss noch geändert werden.
-                    //var a = shadowRoot.FindElement(By.CssSelector("./div"));
-                    int i = 1;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"error: {ex}");
-                    return;
-                }
-
-                //if (!WebScraperHelper.ClickButtonIfPossible(cookieAcceptBtn))
-                //    return;
-                if (cookieBtns == null) { Console.WriteLine("kein Cookie Button gefunden"); return; }
+                if (cookieBtns == null) { return; }
 
                 if (cookieBtns.Count >= 2)
                 {
@@ -282,31 +252,20 @@ namespace LookForSpecialOffers
                 }
             }
 
-
             // Gibt die Postleitzahl ein, damit regionale Angebote angezeigt werden kann
             static void EnterZipCode(IWebDriver driver, string zipCode)
             {
                 //var ShowSearchForMarketBtn = driver.FindElement(By.ClassName("market-tile__btn-not-selected"));
-                IWebElement? ShowSearchForMarketBtn = null;
 
-                try
-                {
-                    ShowSearchForMarketBtn = (IWebElement?)WebScraperHelper.Searching(driver, "market-tile__btn-not-selected", KindOfSearchElement.FindElementByClassName);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error: {ex}");
-                }
+                IWebElement? ShowSearchForMarketBtn = (IWebElement?)Searching(driver, "market-tile__btn-not-selected", KindOfSearchElement.FindElementByClassName);
 
                 Actions actions = new Actions(driver);
-                if (ShowSearchForMarketBtn != null)
-                {
-                    actions.MoveToElement(ShowSearchForMarketBtn).Perform();
-                    // Wenn auf diesen Button geklickt wird, wird ein Eingabefeld angezeigt, wo die PLZ eingegeben werden kann
-                    ShowSearchForMarketBtn.Click();
-                }
+                if (ShowSearchForMarketBtn == null) { return; }
 
-                // Instanziieren der Actions-Klasse
+                actions.MoveToElement(ShowSearchForMarketBtn).Perform();
+                // Wenn auf diesen Button geklickt wird, wird ein Eingabefeld angezeigt, wo die PLZ eingegeben werden kann
+                ShowSearchForMarketBtn.Click();
+
                 actions = new Actions(driver);
 
                 // Schrittweise Eingabe des Textes
@@ -316,49 +275,21 @@ namespace LookForSpecialOffers
                     actions.SendKeys(c.ToString()).Build().Perform();
                 }
 
-                //IWebElement wrapper = driver.FindElement(By.XPath("//*[@class='market-modal__wrapper']"));
-                IWebElement? wrapper = null;
-                try
-                {
-                    wrapper = (IWebElement?)WebScraperHelper.Searching(driver, "//*[@class='market-modal__wrapper']", KindOfSearchElement.FindElementByXPath);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error: {ex}");
-                }
+                IWebElement? wrapper = (IWebElement?)Searching(driver, "//*[@class='market-modal__wrapper']", KindOfSearchElement.FindElementByXPath);
+                
+                //IWebElement? chooseMarketBtn = null;
 
-                IWebElement? chooseMarketBtn = null;
+                if (wrapper == null) { return; }
 
-                if (wrapper != null)
-                    chooseMarketBtn = SearchForChooseMarketBtn(driver, wrapper, chooseMarketBtn, 100, 5000);
+                //chooseMarketBtn = SearchForChooseMarketBtn(driver, wrapper, chooseMarketBtn, 100, 5000);
+                string xPath = ".//main//div[@class='market-modal__results']//ul//li[1]//article//div//div//a";
+                IWebElement? chooseMarketBtn = (IWebElement?)Searching(wrapper, driver, xPath, KindOfSearchElement.FindElementByXPath, 500, 3,
+                    "Der Button, mit welchen der Markt ausgewählt werden kann, wurde nicht gefunden.");
 
                 if (chooseMarketBtn != null)
                     ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", chooseMarketBtn);
-
-                // Sucht solange nach diesen Button, bis er erscheint.
-                static IWebElement? SearchForChooseMarketBtn(IWebDriver driver, IWebElement wrapper, IWebElement? chooseMarketBtn, int delayStep, int maxDelayTotal)
-                {
-                    int maxCount = maxDelayTotal / delayStep;
-                    int count = 0;
-                    while (count < maxCount)
-                    {
-                        try
-                        {
-                            chooseMarketBtn = wrapper.FindElement(By.XPath(".//main//div[@class='market-modal__results']//ul//li[1]//article//div//div//a"));
-                            break;
-                        }
-                        catch
-                        {
-                            chooseMarketBtn = null;
-                            Thread.Sleep(delayStep);
-                        }
-                        count++;
-                    }
-
-                    //var href = aTag.GetAttribute("href");
-                    return chooseMarketBtn;
-                }
             }
+            #endregion
         }
     }
 }
