@@ -21,12 +21,10 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using static LookForSpecialOffers.WebScraperHelper;
 //Bugs:
-// - Per Mail bekommt man nicht mitgeteilt, vom welchen Anbieter das Sonderangebot zur Verfügung steht. 
 
 //todo:
 // - Den User eventuell darauf hinweisen, dass die Excel Tabelle geschlossen werden muss, während das Programm läuft, sonst kann sie nicht mit neuen Daten überschrieben werden.
-// - Andere Discounter hinzufügen.
-// - Benachrichtigung per E-Mail implementieren, wenn bestimmte Angebote einen Wert unterschritten haben. (nur für Penny bis jetzt erledigt)
+// - Andere Discounter und Supermärkte hinzufügen (Bis jetzt wurde Penny und LIDL hinzugefügt).  
 // - eine grafische Oberfläche mit Einstellmöglichkeiten implementieren (mit .NET Maui). Darüber können die vers.
 //   Discounter ausgewählt werden, welche bei der Suche berücksichtigt werden sollen, nach welchen Produkten gesucht werden
 //   sollen, welchen Preis sie haben dürfen usw. 
@@ -42,12 +40,11 @@ namespace LookForSpecialOffers
         {
             new ProduktFavorite("Speisequark", 2.60),
             new ProduktFavorite("Thunfisch", 5.08),
-            new ProduktFavorite("Tomate", 9.50),
+            new ProduktFavorite("Tomate", 2.00),
             new ProduktFavorite("Orange", 0.99),
             new ProduktFavorite("Buttermilch", 0.99),
             new ProduktFavorite("Äpfel", 1.99)
         };
-        static internal Dictionary<Discounter, List<Product>> AllProducts = new Dictionary<Discounter, List<Product>>();
         internal static string ExcelPath { get; set; } = "Angebote.xlsx";
 
         internal static string EMail { get; set; } = "d.rothweiler@yahoo.de";
@@ -56,12 +53,15 @@ namespace LookForSpecialOffers
 
         internal static string ZipCode { get; set; } = "01239";
         #endregion
+
+        static internal Dictionary<Discounter, List<Product>> AllProducts = new Dictionary<Discounter, List<Product>>();
+
         internal static bool IsNewOffersAvailable { get; set; } = false;                  // Sind neue Angebote vorhanden? Falls ja, dann soll eine E-Mail verschickt werden
 
         static void Main(string[] args) 
         {
             ChromeOptions options = new ChromeOptions();
-            //options.AddArgument("--headless");              //öffnet die seiten im hintergrund
+            options.AddArgument("--headless");              //öffnet die Seiten im Hintergrund
             using (IWebDriver driver = new ChromeDriver(options))
             {
                 //driver.Manage().Window.Maximize();
@@ -70,7 +70,7 @@ namespace LookForSpecialOffers
 
                 // Extrahiert die Daten wie Artikelnamen, Preis etc. von bestimmten Webseiten von Discountern und anderen Supermärkten.
                 Penny.ExtractOffers(driver, periodheadline);
-                //Lidl.ExtractOffers(driver, periodheadline);
+                Lidl.ExtractOffers(driver, periodheadline);
 
                 InformPerEMail(IsNewOffersAvailable, AllProducts);
 

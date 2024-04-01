@@ -20,12 +20,10 @@ using static LookForSpecialOffers.WebScraperHelper;
 
 
 //Bug:
-// - Die Bio Produkte( die keine Preise enthalten auf Unterseite Nr.5) werden nur ab und zu in der Liste mit übernommen.
-// - Wenn das Fenster minimiert ist oder das ganze Programm im Hintergrund läuft, funktioniert es nicht richtig. Ansonsten
+// - Wenn das Fenster minimiert ist funktioniert es nicht richtig. Ansonsten
 // scheint es zu funktionieren.
 
 //Todo:
-// -noch von wann bis wann diese Angebote gültig sind, wenn möglich (Notfalls von Penny übernehmen)
 
 namespace LookForSpecialOffers
 {
@@ -56,7 +54,8 @@ namespace LookForSpecialOffers
                     ExtractSubPage(driver, detailPages[i].Url, detailPages[i].Info);
                 }
             }
-            
+            //Filtert identische Einträge heraus
+            Products = Products.Distinct().ToList();
             string period = string.Empty;
             SaveToExcel(Products, period, Program.ExcelPath, Discounter.Lidl);
 
@@ -241,7 +240,7 @@ namespace LookForSpecialOffers
                         {
                             //Console.WriteLine("Beschreibung nicht vorhanden");
                         }
-
+                        
                         // Es kann sein, dass keine kg Preise ermittelt bzw. gefunden werden konnten.
                         
                         if (articlePricesPerKg.Count > 0)
