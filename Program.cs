@@ -43,7 +43,8 @@ namespace LookForSpecialOffers
             new ProduktFavorite("Tomate", 2.00),
             new ProduktFavorite("Orange", 0.99),
             new ProduktFavorite("Buttermilch", 0.99),
-            new ProduktFavorite("Äpfel", 1.99)
+            new ProduktFavorite("Äpfel", 1.99),
+            new ProduktFavorite("Hackfleisch", 5.99)
         };
         internal static string ExcelPath { get; set; } = "Angebote.xlsx";
 
@@ -70,7 +71,7 @@ namespace LookForSpecialOffers
 
                 // Extrahiert die Daten wie Artikelnamen, Preis etc. von bestimmten Webseiten von Discountern und anderen Supermärkten.
                 Penny.ExtractOffers(driver, periodheadline);
-                Lidl.ExtractOffers(driver, periodheadline);
+                //Lidl.ExtractOffers(driver, periodheadline);
 
                 InformPerEMail(IsNewOffersAvailable, AllProducts);
 

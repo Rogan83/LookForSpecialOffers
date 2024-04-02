@@ -41,8 +41,11 @@ namespace LookForSpecialOffers
 
                 foreach (var articleDivContainer in articleDivContainers)
                 {
+                    //Ab wann gilt dieses Angebot
                     var offerStartDate = articleDivContainer.Attributes["id"].Value.Replace('-', ' ').
-                        Replace("ae","ä").Replace("oe","ö").Replace("ue","ü");                          //Ab wann gilt dieses Angebot
+                        Replace("ae","ä").Replace("oe","ö").Replace("ue","ü").Replace("montag","Montag").
+                        Replace("dienstag","Dienstag").Replace("mittwoch","Mittwoch").
+                        Replace("donnerstag","Donnerstag").Replace("freitag","Freitag");                          
 
                     var articleSectionContainers = articleDivContainer.SelectNodes("./section");
 

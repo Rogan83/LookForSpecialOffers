@@ -955,7 +955,7 @@ namespace LookForSpecialOffers
         {
             if (isNewOffersAvailable)
             {
-                int interestingOfferCount = 0;
+                int interestingOfferCounter = 0;
                 string offers = string.Empty;
                 // Als nächstes soll untersucht werden, ob von den interessanten Angeboten der Preis auch niedrig genug ist.
                 foreach (var products in allProducts)
@@ -966,19 +966,23 @@ namespace LookForSpecialOffers
                         { 
                             if (product.Name.ToLower().Trim().Contains(interestingProduct.Name.ToLower().Trim()))
                             {
-                                // falls bei beiden Kg bzw. Liter Preise nichts drin steht, dann könnte das bedeuten, dass entweder die Menge schon ein Kilo entspricht oder dass es einzel Preise sind
+                                string marketName = products.Key.ToString();
+                                // falls bei beiden Kg bzw. Liter Preise der Wert "0" drin steht, dann könnte das bedeuten,
+                                // dass entweder die Menge schon ein Kilo entspricht oder dass sich der Preis pro Produkt bezieht.
                                 if (product.PricePerKgOrLiter == 0)
                                 {
                                     if (product.NewPrice <= interestingProduct.PriceCap && product.NewPrice != 0)
                                     {
-                                        offers += $" {product.Name} vom Anbieter {products.Key} für nur {product.NewPrice} €.\n";
-                                        interestingOfferCount++;
+                                        offers += $" {product.Name} {product.Description} vom Anbieter {marketName} {product.OfferStartDate}" +
+                                            $" für nur {product.NewPrice}€.\n";
+                                        interestingOfferCounter++;
                                     }
                                 }
                                 else if (product.PricePerKgOrLiter <= interestingProduct.PriceCap && product.PricePerKgOrLiter != 0)
                                 {
-                                    offers += $" {product.Name} vom Anbieter {products.Key} für nur {product.NewPrice} €.\n";
-                                    interestingOfferCount++;
+                                    offers += $" {product.Name} {product.Description} vom Anbieter {marketName} {product.OfferStartDate}" +
+                                        $" für nur {product.NewPrice}€ ({product.PricePerKgOrLiter}€ pro Kg).\n";
+                                    interestingOfferCounter++;
                                 }
                             }
                         }
@@ -988,18 +992,18 @@ namespace LookForSpecialOffers
 
                 string body = string.Empty;
                 string subject = string.Empty;
-                if (interestingOfferCount > 1)
+                if (interestingOfferCounter > 1)
                 {
                     subject = "Interessante Angebote gefunden!";
-                    body = $"Gute Nachricht! Folgende Angebote, welche deinen preislichen Vorstellungen entspricht, wurden gefunden: \n\n{offers}";
+                    body = $"Gute Nachricht! Folgende Angebote, die dich interessieren und günstig genug sind, wurden gefunden: \n\n\n{offers}";
                 }
-                else if (interestingOfferCount == 1)
+                else if (interestingOfferCounter == 1)
                 {
                     subject = "Es wurde ein interessantes Angebot gefunden!";
-                    body = $"Gute Nachricht! Folgendes Angebot, welches deine preisliche Vorstellung entspricht, wurde gefunden: \n\n{offers}";
+                    body = $"Gute Nachricht! Folgendes Angebot, welches dich interessiert und günstig genug ist, wurde gefunden: \n\n\n{offers}";
                 }
 
-                if (interestingOfferCount > 0)
+                if (interestingOfferCounter > 0)
                 {
                     body += "\nHier sind die Links zu den Anbietern: \n\n" +
                             "https://www.penny.de/angebote \n" +
