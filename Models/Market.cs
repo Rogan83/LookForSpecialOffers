@@ -4,17 +4,17 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace LookForSpecialOffers
+namespace LookForSpecialOffers.Models
 {
-    internal class ProduktFavorite
+    internal class Market
     {
         public string Name { get; set; }
-        public double PriceCap { get; set; }
+        public bool IsSelected { get; set; }
 
-        public ProduktFavorite(string name, double pricePerKg)
+        public Market(string name, bool isSelected)
         {
             Name = name;
-            PriceCap = pricePerKg;
+            IsSelected = isSelected;
         }
     }
 }

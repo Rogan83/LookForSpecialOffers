@@ -14,6 +14,7 @@ using LookForSpecialOffers.Enums;
 using System.Collections.ObjectModel;
 using static LookForSpecialOffers.WebScraperHelper;
 using System.Text.RegularExpressions;
+using LookForSpecialOffers.Models;
 
 namespace LookForSpecialOffers
 {
@@ -83,7 +84,7 @@ namespace LookForSpecialOffers
                                 "//div[contains(@class, 'bubble offer-tile')]" +
                                 "//div");
 
-                            double oldPrice = 0, newPrice = 0;
+                            decimal oldPrice = 0, newPrice = 0;
 
                             if (priceContainer != null)
                             {
@@ -131,19 +132,19 @@ namespace LookForSpecialOffers
                 }
 
                 //InformPerEMail(isNewOffersAvailable, pennyProducts);
-                SaveToExcel(Products, period, Program.ExcelPath, Discounter.Penny);
+                SaveToExcel(Products, period, Program.ExcelFilePath, Discounter.Penny);
             }
 
             Program.AllProducts[Discounter.Penny] = new List<Product>(Products);
 
             #region Nested Methods
-            static List<double> ExtractPrices(string input, double newPrice = 0)
+            static List<decimal> ExtractPrices(string input, decimal newPrice = 0)
             {
                 string pattern = @"(\d+\,\d+)|(\d+\.\d+)|(\.\d+)|(\d+)";
                 // Regulären Ausdruck erstellen
                 Regex regex = new Regex(pattern);
 
-                List<double> prices = new List<double>();
+                List<decimal> prices = new List<decimal>();
                 
                 // Teile den Eingabetext am "="-Zeichen, wenn vorhanden
                 if (input.ToLower().Contains("="))
@@ -159,10 +160,10 @@ namespace LookForSpecialOffers
 
                         foreach (Match match in matches)
                         {
-                            double amount = 0;
+                            decimal amount = 0;
                             if (match.Success)
                             {
-                                if (!double.TryParse(match.Value.Replace(",", "."), CultureInfo.InvariantCulture, out amount))
+                                if (!decimal.TryParse(match.Value.Replace(",", "."), CultureInfo.InvariantCulture, out amount))
                                 {
                                     Console.WriteLine($"Der extrahierte Wert: {match.Value} konnte nicht als Zahl umgewandelt werden");
                                 }
@@ -176,14 +177,14 @@ namespace LookForSpecialOffers
                     }
                     else
                     {
-                        double price = ExtractSinglePriceOrValue(valuePart, regex);
+                        decimal price = ExtractSinglePriceOrValue(valuePart, regex);
                         prices.Add(price);
 
                     }
                 }
                 else if (input.Contains("kg") || (input.ToLower().Contains("l") && input.ToLower().Contains("je")))
                 {
-                    double value = ExtractSinglePriceOrValue(input, regex);
+                    decimal value = ExtractSinglePriceOrValue(input, regex);
                     if (value == 0) { value = 1; }
                     if (newPrice != 0)
                     {
@@ -192,13 +193,13 @@ namespace LookForSpecialOffers
                 }
                 else
                 {
-                    double price = ExtractSinglePriceOrValue(input, regex);
+                    decimal price = ExtractSinglePriceOrValue(input, regex);
                     prices.Add(price);
                 }
 
                 return prices;
 
-                static double ExtractSinglePriceOrValue(string input, Regex regex)
+                static decimal ExtractSinglePriceOrValue(string input, Regex regex)
                 {
                     Match match = regex.Match(input);
                     string priceText = string.Empty;
@@ -206,9 +207,9 @@ namespace LookForSpecialOffers
                     {
                         priceText = match.Value.Replace(",", ".");
                     }
-                    double price = 0;
+                    decimal price = 0;
 
-                    if (!double.TryParse(match.Value, CultureInfo.InvariantCulture, out price))
+                    if (!decimal.TryParse(match.Value, CultureInfo.InvariantCulture, out price))
                     {
                         Console.WriteLine($"Der extrahierte Wert: {match.Value} konnte nicht als Zahl umgewandelt werden");
                     }
@@ -258,7 +259,8 @@ namespace LookForSpecialOffers
             // Gibt die Postleitzahl ein, damit regionale Angebote angezeigt werden kann
             static void EnterZipCode(IWebDriver driver, string zipCode)
             {
-                //var ShowSearchForMarketBtn = driver.FindElement(By.ClassName("market-tile__btn-not-selected"));
+                if (zipCode.Length != 5)
+                    return;
 
                 IWebElement? ShowSearchForMarketBtn = (IWebElement?)Searching(driver, "market-tile__btn-not-selected", KindOfSearchElement.FindElementByClassName);
 

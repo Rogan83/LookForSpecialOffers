@@ -1,5 +1,6 @@
 ﻿using HtmlAgilityPack;
 using LookForSpecialOffers.Enums;
+using LookForSpecialOffers.Models;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.FileSystemGlobbing.Internal;
 using Microsoft.Extensions.Primitives;
@@ -20,7 +21,7 @@ using static LookForSpecialOffers.WebScraperHelper;
 
 
 //Bug:
-// - Wenn das Fenster minimiert ist funktioniert es nicht richtig. Ansonsten
+// - Wenn das Fenster minimiert ist funktioniert die Datenextration nicht richtig. Ansonsten
 // scheint es zu funktionieren.
 
 //Todo:
@@ -57,7 +58,7 @@ namespace LookForSpecialOffers
             //Filtert identische Einträge heraus
             Products = Products.Distinct().ToList();
             string period = string.Empty;
-            SaveToExcel(Products, period, Program.ExcelPath, Discounter.Lidl);
+            SaveToExcel(Products, period, Program.ExcelFilePath, Discounter.Lidl);
 
             Program.AllProducts[Discounter.Lidl] = new List<Product>(Products);
 
@@ -211,15 +212,15 @@ namespace LookForSpecialOffers
                         }
                         ///
 
-                        double newPrice = 0, oldPrice = 0;
-                        List<double> articlePricesPerKg = new List<double>();
+                        decimal newPrice = 0, oldPrice = 0;
+                        List<decimal> articlePricesPerKg = new List<decimal>();
                         //bool isPriceInCent = false;
 
                         string oldPriceText = string.Empty, newPriceText = string.Empty, articlePricePerKgText = string.Empty,
                             description = string.Empty;
 
                         // suche nach dem neuen (aktuellen) Preis
-                        List<double> temp = new List<double>();
+                        List<decimal> temp = new List<decimal>();
                         if (productInfoContainer == null) { continue; }
 
                         temp = ConvertPrices(productInfoContainer, ".m-price__price.m-price__price--small", newPriceText);
@@ -245,7 +246,7 @@ namespace LookForSpecialOffers
                         
                         if (articlePricesPerKg.Count > 0)
                         {
-                            foreach (double articlePricePerKg in articlePricesPerKg)
+                            foreach (decimal articlePricePerKg in articlePricesPerKg)
                             {
                                 var product = new Product(articleName, description, oldPrice, newPrice, articlePricePerKg, badge, startDate);
                                 Products.Add(product);
@@ -259,9 +260,9 @@ namespace LookForSpecialOffers
                     }
                 }
 
-                static List<double> ConvertPrices(IWebElement divProduct, string cssSelector, string priceText, double newPrice = 0, bool isKgPriceText = false)
+                static List<decimal> ConvertPrices(IWebElement divProduct, string cssSelector, string priceText, decimal newPrice = 0, bool isKgPriceText = false)
                 {
-                    List<double> prices = new List<double>();
+                    List<decimal> prices = new List<decimal>();
                     bool isPriceInCent = false;
                     try
                     {
@@ -288,7 +289,7 @@ namespace LookForSpecialOffers
                         // oder "Gramm" (g) drin
                         else if (priceText.Contains("kg") || (priceText.ToLower().Contains("l") && priceText.ToLower().Contains("je")))
                         {
-                            List<double> unitAmount = ExtractPricesOrValues(priceText);
+                            List<decimal> unitAmount = ExtractPricesOrValues(priceText);
                             //Wenn keine Zahl gefunden wurde, liegt es wohl daran, dass dort sowas wie 'kg-Preis'
                             //nur drin steht, was ja bedeutet, dass die Menge 1 Kg sein muss. In diesen Fall wird ja die 
                             //Zahl 0 zurückgegeben
@@ -303,7 +304,7 @@ namespace LookForSpecialOffers
                     }
                     else
                     {
-                        double price = 0;
+                        decimal price = 0;
 
                         if (priceText.Contains("-") && priceText.Contains("."))
                         {
@@ -311,13 +312,13 @@ namespace LookForSpecialOffers
                             priceText = priceText.Replace("-", " ").Replace(".", " ");
                         }
 
-                        if (!double.TryParse(priceText, CultureInfo.InvariantCulture, out price))
+                        if (!decimal.TryParse(priceText, CultureInfo.InvariantCulture, out price))
                         {
                             //Console.WriteLine($"folgender Preis konnte nicht umgewandelt werden: {priceText}");
                         }
                         if (isPriceInCent)
                         {
-                            price /= 100d;
+                            price /= 100m;
                         }
                         price = Math.Round(price, 2);
                         prices.Add(price);
@@ -325,9 +326,9 @@ namespace LookForSpecialOffers
 
                     return prices;
 
-                    static List<double> ExtractPricesBehindEqualChar(string input)
+                    static List<decimal> ExtractPricesBehindEqualChar(string input)
                     {
-                        List<double> prices = new List<double>();
+                        List<decimal> prices = new List<decimal>();
 
                         // Teile den Eingabetext am "="-Zeichen
                         int index = input.IndexOf("=");
@@ -344,9 +345,9 @@ namespace LookForSpecialOffers
                     }
 
 
-                    static List<double> ExtractPricesOrValues(string input)
+                    static List<decimal> ExtractPricesOrValues(string input)
                     {
-                        List<double> amounts = new List<double>();
+                        List<decimal> amounts = new List<decimal>();
 
                         // Muster, um Zahlen zu extrahieren
                         //extrahiert alle zahlen im format mit folgenden Formatbeispielen
@@ -366,10 +367,10 @@ namespace LookForSpecialOffers
 
                             foreach (Match match in matches)
                             {
-                                double amount = 0;
+                                decimal amount = 0;
                                 if (match.Success)
                                 {
-                                    if (!double.TryParse(match.Value, CultureInfo.InvariantCulture, out amount))
+                                    if (!decimal.TryParse(match.Value, CultureInfo.InvariantCulture, out amount))
                                     {
                                         Console.WriteLine($"Der extrahierte Wert: {match.Value} konnte nicht als Zahl umgewandelt werden");
                                     }
@@ -389,9 +390,9 @@ namespace LookForSpecialOffers
                             if (match.Success)
                                 amountText = match.Value.Replace(",", ".");
 
-                            double amount = 0;
+                            decimal amount = 0;
 
-                            if (!double.TryParse(amountText, CultureInfo.InvariantCulture, out amount))
+                            if (!decimal.TryParse(amountText, CultureInfo.InvariantCulture, out amount))
                             {
                                 Console.WriteLine($"Der Betrag konnte nicht umgewandelt werden: {amountText}");
                             }

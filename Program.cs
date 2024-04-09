@@ -19,41 +19,40 @@ using System.Net.Mail;
 using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using Newtonsoft.Json;
 using static LookForSpecialOffers.WebScraperHelper;
+using Newtonsoft.Json.Linq;
+using LookForSpecialOffers.Models;
+using System.Collections.ObjectModel;
 //Bugs:
 
 //todo:
 // - Den User eventuell darauf hinweisen, dass die Excel Tabelle geschlossen werden muss, während das Programm läuft, sonst kann sie nicht mit neuen Daten überschrieben werden.
 // - Andere Discounter und Supermärkte hinzufügen (Bis jetzt wurde Penny und LIDL hinzugefügt).  
-// - eine grafische Oberfläche mit Einstellmöglichkeiten implementieren (mit .NET Maui). Darüber können die vers.
-//   Discounter ausgewählt werden, welche bei der Suche berücksichtigt werden sollen, nach welchen Produkten gesucht werden
-//   sollen, welchen Preis sie haben dürfen usw. 
+// - Bei LIDL muss noch überprüft werden, ob die aktuelle Angebote von den bereits gespeicherten Angeboten in der Excel Tabelle abweicht, damit 
+//   per E-Mail benachrichtigt werden kann, ob neue Angebote vorhanden sind. (Bei Penny wurde dies bereits umgesetzt). 
 
 namespace LookForSpecialOffers
 {
     static class Program
     {
-        // Diese Daten sollen später durch die Eingabe gesetzt werden (entweder durch eine grafischen Oberfläche oder einfach durch eine Datei, in der man diese
-        // Daten direkt einträgt).
-        #region Testdaten
-        static internal List<ProduktFavorite> InterestingProducts { get; set; } = new()
-        {
-            new ProduktFavorite("Speisequark", 2.60),
-            new ProduktFavorite("Thunfisch", 5.08),
-            new ProduktFavorite("Tomate", 2.00),
-            new ProduktFavorite("Orange", 0.99),
-            new ProduktFavorite("Buttermilch", 0.99),
-            new ProduktFavorite("Äpfel", 1.99),
-            new ProduktFavorite("Hackfleisch", 5.99)
-        };
-        internal static string ExcelPath { get; set; } = "Angebote.xlsx";
+        //static string projectPath = AppDomain.CurrentDomain.BaseDirectory;
+        static string path = @"H:\Test";
 
-        internal static string EMail { get; set; } = "d.rothweiler@yahoo.de";
+        //static string jsonFilePath = Path.Combine(projectPath, "settings.json");
+        static string jsonFilePath = Path.Combine(path, "settings.json");
+
+        static internal List<FavoriteProduct> FavoriteProducts { get; set; } = new();
+        static Dictionary<string, bool?> Markets { get; set; } = new Dictionary<string, bool?>();
+
+        internal static string ExcelFilePath { get; set; } = "Angebote.xlsx";
+
+        internal static string Email { get; set; } = string.Empty;
+        //internal static string Email { get; set; } = "d.rothweiler@yahoo.de";
         //static string EMail { get; set; } = "hadess90@web.de";
         //static string EMail { get; set; } = "tubadogan.85@googlemail.com";
 
-        internal static string ZipCode { get; set; } = "01239";
-        #endregion
+        internal static string ZipCode { get; set; } = string.Empty;
 
         static internal Dictionary<Discounter, List<Product>> AllProducts = new Dictionary<Discounter, List<Product>>();
 
@@ -61,23 +60,112 @@ namespace LookForSpecialOffers
 
         static void Main(string[] args) 
         {
+            // Daten laden
+            if (File.Exists(jsonFilePath))
+            {
+                LoadData();
+            }
+            else
+            {
+                FavoriteProducts = new()
+                {
+                    new FavoriteProduct("Speisequark", 2.60m, 1.30m),
+                    new FavoriteProduct("Thunfisch", 5.08m, 1.00m),
+                    new FavoriteProduct("Tomate", 2.00m, 1.00m),
+                    new FavoriteProduct("Orange", 2.00m, 0.99m),
+                    new FavoriteProduct("Buttermilch", 0.99m, 0.49m),
+                    new FavoriteProduct("Äpfel", 1.99m, 0.49m),
+                    new FavoriteProduct("Hackfleisch", 5.99m, 2.49m)
+                };
+
+                Markets = new Dictionary<string, bool?>
+                {
+                    { "Penny", true },
+                    { "Lidl", false },
+                    { "Aldi", false },
+                    { "Netto", false },
+                    { "Kaufland", false }
+                };
+
+                ExcelFilePath = "Angebote.xlsx";
+            }
+
             ChromeOptions options = new ChromeOptions();
             options.AddArgument("--headless");              //öffnet die Seiten im Hintergrund
             using (IWebDriver driver = new ChromeDriver(options))
             {
                 //driver.Manage().Window.Maximize();
                 //driver.Manage().Window.Minimize();
-                string periodheadline = ExtractHeadlineFromExcel(ExcelPath);
+                string periodheadline = ExtractHeadlineFromExcel(ExcelFilePath);
 
                 // Extrahiert die Daten wie Artikelnamen, Preis etc. von bestimmten Webseiten von Discountern und anderen Supermärkten.
-                Penny.ExtractOffers(driver, periodheadline);
-                //Lidl.ExtractOffers(driver, periodheadline);
+                if (Markets["Penny"] != null)
+                {
+                    if (Markets["Penny"].Value == true)
+                        Penny.ExtractOffers(driver, periodheadline);
+                }
+
+                if (Markets["Lidl"] != null)
+                {
+                    if (Markets["Lidl"].Value == true)
+                        Lidl.ExtractOffers(driver, periodheadline);
+                }
 
                 InformPerEMail(IsNewOffersAvailable, AllProducts);
 
                 excelPackage.Dispose();
 
                 driver.Quit();
+            }
+        }
+
+        static void LoadData()
+        {
+            string jsonStringFromFile = File.ReadAllText(jsonFilePath);
+
+            JObject data = JObject.Parse(jsonStringFromFile);
+
+            JArray loadedProducts = (JArray)data["FavoriteProducts"];
+            FavoriteProducts.Clear();
+            foreach (JObject loadedProduct in loadedProducts)
+            {
+                string name = (string)loadedProduct["Name"];
+                decimal priceCapPerKg = (decimal)loadedProduct["PriceCapPerKg"];
+                decimal priceCapPerProduct = (decimal)loadedProduct["PriceCapPerProduct"];
+
+                FavoriteProducts.Add(new FavoriteProduct(name, priceCapPerKg, priceCapPerProduct));
+            }
+
+            JArray loadedMarkets = (JArray)data["Markets"];
+            foreach (JObject loadedMarket in loadedMarkets)
+            {
+                string? name = (string?)loadedMarket["Name"];
+                bool? isSelected = (bool?)loadedMarket["IsSelected"];
+
+                if (name != null && isSelected != null)
+                {
+                    Markets[name] = isSelected;
+                }
+            }
+
+            string loadedEmail, loadedPath, loadedZipCode;
+            if (data["Email"] != null)
+            {
+                var temp = (string)data["Email"];
+                if (temp != string.Empty)
+                    Email = temp;
+            }
+
+            if (data["Path"] != null)
+            {
+                var temp = (string)data["Path"];
+                if (temp != string.Empty)
+                    ExcelFilePath = temp;
+            }
+
+            if (data["ZipCode"] != null)
+            {
+                ZipCode = (string)data["ZipCode"];
             }
         }
 

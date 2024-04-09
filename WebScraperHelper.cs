@@ -17,6 +17,7 @@ using OpenQA.Selenium.DevTools.V120.Debugger;
 using System.Runtime.InteropServices;
 using System.Collections.ObjectModel;
 using OpenQA.Selenium.DevTools.V120.Preload;
+using LookForSpecialOffers.Models;
 
 namespace LookForSpecialOffers
 {
@@ -858,19 +859,19 @@ namespace LookForSpecialOffers
                 }
 
                 // Überprüfe, ob eines der interessanten Produkten mit dabei ist. Falls ja, dann verändere die Hintergrundfarbe
-                foreach (var interestingProduct in Program.InterestingProducts)
+                foreach (var interestingProduct in Program.FavoriteProducts)
                 {
                     string produktFullName = products[i].Name;
                     if (IsContains(interestingProduct.Name, produktFullName))
                     {
                         if (products[i].PricePerKgOrLiter == 0)
                         {
-                            if (products[i].NewPrice <= interestingProduct.PriceCap && products[i].NewPrice != 0)
+                            if (products[i].NewPrice <= interestingProduct.PriceCapPerKg && products[i].NewPrice != 0)
                             {
                                 HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
                             }
                         }
-                        else if (products[i].PricePerKgOrLiter <= interestingProduct.PriceCap && products[i].PricePerKgOrLiter != 0)      
+                        else if (products[i].PricePerKgOrLiter <= interestingProduct.PriceCapPerKg && products[i].PricePerKgOrLiter != 0)      
                         {
                             HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
                         }
@@ -962,7 +963,7 @@ namespace LookForSpecialOffers
                 {
                     foreach (var product in products.Value)
                     {
-                        foreach (var interestingProduct in Program.InterestingProducts)
+                        foreach (var interestingProduct in Program.FavoriteProducts)
                         { 
                             if (product.Name.ToLower().Trim().Contains(interestingProduct.Name.ToLower().Trim()))
                             {
@@ -971,14 +972,14 @@ namespace LookForSpecialOffers
                                 // dass entweder die Menge schon ein Kilo entspricht oder dass sich der Preis pro Produkt bezieht.
                                 if (product.PricePerKgOrLiter == 0)
                                 {
-                                    if (product.NewPrice <= interestingProduct.PriceCap && product.NewPrice != 0)
+                                    if (product.NewPrice <= interestingProduct.PriceCapPerKg && product.NewPrice != 0)
                                     {
                                         offers += $" {product.Name} {product.Description} vom Anbieter {marketName} {product.OfferStartDate}" +
                                             $" für nur {product.NewPrice}€.\n";
                                         interestingOfferCounter++;
                                     }
                                 }
-                                else if (product.PricePerKgOrLiter <= interestingProduct.PriceCap && product.PricePerKgOrLiter != 0)
+                                else if (product.PricePerKgOrLiter <= interestingProduct.PriceCapPerKg && product.PricePerKgOrLiter != 0)
                                 {
                                     offers += $" {product.Name} {product.Description} vom Anbieter {marketName} {product.OfferStartDate}" +
                                         $" für nur {product.NewPrice}€ ({product.PricePerKgOrLiter}€ pro Kg).\n";
@@ -1010,7 +1011,7 @@ namespace LookForSpecialOffers
                             "https://www.lidl.de/store \n\n" +
                             "Viel Spaß beim Einkaufen!";
 
-                    SendEMail(Program.EMail, subject, body);
+                    SendEMail(Program.Email, subject, body);
                 }
             }
             void SendEMail(string mailAdress, string subject, string body)
