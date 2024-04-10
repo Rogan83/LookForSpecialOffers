@@ -54,7 +54,7 @@ namespace LookForSpecialOffers
 
         internal static string ZipCode { get; set; } = string.Empty;
 
-        static internal Dictionary<Discounter, List<Product>> AllProducts = new Dictionary<Discounter, List<Product>>();
+        static internal Dictionary<MarketEnum, List<Product>> AllProducts = new Dictionary<MarketEnum, List<Product>>();
 
         internal static bool IsNewOffersAvailable { get; set; } = false;                  // Sind neue Angebote vorhanden? Falls ja, dann soll eine E-Mail verschickt werden
 
@@ -90,31 +90,37 @@ namespace LookForSpecialOffers
                 ExcelFilePath = "Angebote.xlsx";
             }
 
+            //Test
+            //List<Product> p = LoadFromExcel(ExcelFilePath, Discounter.Penny);
+
             ChromeOptions options = new ChromeOptions();
             options.AddArgument("--headless");              //öffnet die Seiten im Hintergrund
             using (IWebDriver driver = new ChromeDriver(options))
             {
                 //driver.Manage().Window.Maximize();
                 //driver.Manage().Window.Minimize();
-                string periodheadline = ExtractHeadlineFromExcel(ExcelFilePath);
 
                 // Extrahiert die Daten wie Artikelnamen, Preis etc. von bestimmten Webseiten von Discountern und anderen Supermärkten.
                 if (Markets["Penny"] != null)
                 {
                     if (Markets["Penny"].Value == true)
+                    {
+                        string periodheadline = ExtractHeadlineFromExcel(ExcelFilePath, MarketEnum.Penny);
                         Penny.ExtractOffers(driver, periodheadline);
+                    }
                 }
 
                 if (Markets["Lidl"] != null)
                 {
                     if (Markets["Lidl"].Value == true)
+                    {
+                        string periodheadline = ExtractHeadlineFromExcel(ExcelFilePath, MarketEnum.Lidl);
                         Lidl.ExtractOffers(driver, periodheadline);
+                    }
                 }
 
                 InformPerEMail(IsNewOffersAvailable, AllProducts);
-
                 excelPackage.Dispose();
-
                 driver.Quit();
             }
         }

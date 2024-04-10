@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace LookForSpecialOffers.Enums
 {
-    internal enum Discounter
+    internal enum MarketEnum
     {
         Penny,
         Lidl,

@@ -123,19 +123,27 @@ namespace LookForSpecialOffers
                     "//div[@class = 'category-menu__header-container']" +
                     "//div//div//div")).Attributes["data-startend"].Value;
 
-                // Wenn keine Datei vorhanden ist, dann kann auch nicht verglichen werden, ob das Datum von den Angeboten,
-                // die in der Excel Tabelle stehen und das Datum von den aktuellen Angeboten übereinstimmen. In diesen Fall
-                // muss davon ausgegangen werden, dass noch nicht über die neuen Angebote informiert wurde.
+
+                // Die Produkte von der Excel Tabelle
+                //var loadedProducts = LoadFromExcel(Program.ExcelFilePath, Discounter.Penny);
+                // Überprüft, ob die beiden Listen identisch sind.
+                //var isEpual = loadedProducts.SequenceEqual(Products);
+                //if (!isEpual)
+                //{
+                //    // Wenn die Listen nicht identisch sind, dann gibt es neue Angebote und der User soll über diese per
+                //    // E-mail informiert werden.
+                //    Program.IsNewOffersAvailable = true;
+                //}
+
                 if (oldPeriodHeadline == string.Empty || !oldPeriodHeadline.Contains(period))
                 {
                     Program.IsNewOffersAvailable = true;
                 }
 
-                //InformPerEMail(isNewOffersAvailable, pennyProducts);
-                SaveToExcel(Products, period, Program.ExcelFilePath, Discounter.Penny);
+                SaveToExcel(Products, period, Program.ExcelFilePath, MarketEnum.Penny);
             }
 
-            Program.AllProducts[Discounter.Penny] = new List<Product>(Products);
+            Program.AllProducts[MarketEnum.Penny] = new List<Product>(Products);
 
             #region Nested Methods
             static List<decimal> ExtractPrices(string input, decimal newPrice = 0)

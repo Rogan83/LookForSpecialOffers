@@ -32,6 +32,10 @@ namespace LookForSpecialOffers
     {
         internal static List<Product> Products = new();
         static string pathMainPage = "https://www.lidl.de/store";
+
+        static string date = string.Empty;
+        static string dateAndWeekdayInfoText = string.Empty;
+        static bool isDateFound = false;
         internal static void ExtractOffers(IWebDriver driver, string oldPeriodHeadline)
         {
             List<DetailPage>? detailPages = new();
@@ -57,10 +61,34 @@ namespace LookForSpecialOffers
             }
             //Filtert identische Einträge heraus
             Products = Products.Distinct().ToList();
-            string period = string.Empty;
-            SaveToExcel(Products, period, Program.ExcelFilePath, Discounter.Lidl);
 
-            Program.AllProducts[Discounter.Lidl] = new List<Product>(Products);
+            // Todo: es muss ermittelt werden, ob es neue Angebote gibt
+            // Idee: es steht bei der Lidl Webseite zumindest ein Datum auf der Hauptseite wie z.b. ab Montag, den 08.04 oder so ähnlich.
+            // Dieses Datum kann man dazu Nutzen, um in den Header von der Excel Tabelle einzutragen. Dieser wird dann ausgelesen und
+            // dann mit dem aktuellen Datum der Webseite verglichen und bei einer Abweichung = neue Angebote
+
+            string period = CreatePeriod();
+
+            if (oldPeriodHeadline == string.Empty || !oldPeriodHeadline.Contains(period))
+            {
+                Program.IsNewOffersAvailable = true;
+            }
+
+
+            // Die Produkte von der Excel Tabelle
+            //var loadedProducts = LoadFromExcel(Program.ExcelFilePath, Discounter.Lidl);
+            //// Überprüft, ob die beiden Listen identisch sind.
+            //var isEpual = loadedProducts.SequenceEqual(Products);
+            //if (!isEpual)
+            //{
+            //    // Wenn die Listen nicht identisch sind, dann gibt es neue Angebote und der User soll über diese per
+            //    // E-mail informiert werden.
+            //    Program.IsNewOffersAvailable = true;
+            //}
+
+            SaveToExcel(Products, period, Program.ExcelFilePath, MarketEnum.Lidl);
+
+            Program.AllProducts[MarketEnum.Lidl] = new List<Product>(Products);
 
             #region Nested Methods
 
@@ -126,11 +154,28 @@ namespace LookForSpecialOffers
             // Extrahiere die Seite, wo jeweils alle Produkte stehen
             static void ExtractSubPage(IWebDriver driver, string url, string startDate)
             {
+                //nachschauen, ob beim startDate auch ein Datum enthalten ist.
+                if (!isDateFound)
+                {
+                    string pattern = @"\d{2}.\d{2}.";
+                    Regex regex = new Regex(pattern);
+                    Match match = regex.Match(startDate);
+
+                    if (match.Success)
+                    {
+                        date = match.Value;
+                        dateAndWeekdayInfoText = startDate;
+                        isDateFound = true;
+                    }
+                }
+                //Debug Test
+                //return;
+
                 ScrollThroughPage(driver, 300, 1000, 100);
 
                 IWebElement? mainDivContainer = null;       //Hauptcontainer
                 string className = "ATheCampaign__Page";
-                
+
                 mainDivContainer = (IWebElement?)Searching(driver, $"//div[@class = '{className}']",
                     KindOfSearchElement.FindElementByXPath, 500, 2, $"Der Div Container mit dem Klassennamen {className} wurde nicht gefunden.");  //Sucht solange nach diesen Element, bis es erschienen ist oder die max. Zeit überschritten wurde
 
@@ -145,10 +190,10 @@ namespace LookForSpecialOffers
 
                 string searchname = ".//section[contains(@class, 'ATheCampaign__SectionWrapper') " +
                      "and contains(@class, 'APageRoot__Section')]";
-                
+
                 ReadOnlyCollection<IWebElement?>? sections = (ReadOnlyCollection<IWebElement?>?)Searching(mainDivContainer,
                     driver, searchname, KindOfSearchElement.FindElementsByXPath, 500, 2);
-                
+
                 //Debug
                 Console.WriteLine($"anzahl sections: {sections?.Count()}");
                 //info
@@ -162,11 +207,11 @@ namespace LookForSpecialOffers
                 foreach (var section in sections)
                 {
                     if (section == null) continue;
-                    
-                    IWebElement? ol = (IWebElement?)Searching(section, driver, "./div/div/ol", KindOfSearchElement.FindElementByXPath, 500, 1, 
+
+                    IWebElement? ol = (IWebElement?)Searching(section, driver, "./div/div/ol", KindOfSearchElement.FindElementByXPath, 500, 1,
                         $"ol Element von der section mit der id: {section.GetAttribute("id")} nicht gefunden.");
 
-                    if (ol == null) 
+                    if (ol == null)
                     {
                         continue;
                     }
@@ -186,14 +231,14 @@ namespace LookForSpecialOffers
                     foreach (var liElement in liElements)
                     {
                         if (liElement == null) { continue; }
-                        
+
                         IWebElement? productInfoContainer = (IWebElement?)Searching(liElement, driver,
                             "./div/div/div[contains(@class, 'product-grid-box grid-box')]",
                             KindOfSearchElement.FindElementByXPath, 500, 2);
 
                         //enthält infos wie artikelname und die Beschreibung.
                         IWebElement? content = null;
-                       
+
                         if (productInfoContainer == null) { continue; }
 
                         content = (IWebElement?)Searching(productInfoContainer, driver,
@@ -205,12 +250,6 @@ namespace LookForSpecialOffers
 
                         string badge = WebUtility.HtmlDecode(content?.FindElement(By.XPath
                             ("./div[contains(@class, 'text')]"))?.Text ?? "");
-
-                        //test
-                        if (articleName.ToLower().Contains("rotkäppchen"))
-                        {
-                        }
-                        ///
 
                         decimal newPrice = 0, oldPrice = 0;
                         List<decimal> articlePricesPerKg = new List<decimal>();
@@ -226,7 +265,7 @@ namespace LookForSpecialOffers
                         temp = ConvertPrices(productInfoContainer, ".m-price__price.m-price__price--small", newPriceText);
                         if (temp.Count > 0)
                             newPrice = temp[0];  // Es kommt nur 1 aktueller Preis vor
-                                                    // suche nach dem vorherigen Preis, welcher durchgestrichen dargestellt wird.
+                                                 // suche nach dem vorherigen Preis, welcher durchgestrichen dargestellt wird.
                         temp = ConvertPrices(productInfoContainer, ".strikethrough.m-price__rrp", oldPriceText);
                         if (temp.Count > 0)
                             oldPrice = temp[0];  // Es kommt nur 1 vorheriger Preis vor
@@ -241,9 +280,8 @@ namespace LookForSpecialOffers
                         {
                             //Console.WriteLine("Beschreibung nicht vorhanden");
                         }
-                        
+
                         // Es kann sein, dass keine kg Preise ermittelt bzw. gefunden werden konnten.
-                        
                         if (articlePricesPerKg.Count > 0)
                         {
                             foreach (decimal articlePricePerKg in articlePricesPerKg)
@@ -409,7 +447,7 @@ namespace LookForSpecialOffers
             {
                 IWebElement? showMoreBtn = (IWebElement?)Searching(driver, ".AMoreHeroStageItems__ToggleButton-label",
                     KindOfSearchElement.FindElementByCssSelector, 500, waitTime);
-                
+
                 if (showMoreBtn == null) { return; }
                 ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", showMoreBtn);
             }
@@ -418,8 +456,46 @@ namespace LookForSpecialOffers
             {
                 IWebElement? cookieAcceptBtn = (IWebElement?)Searching(driver, "onetrust-accept-btn-handler",
                 KindOfSearchElement.FindElementByID, 500, waitTime);
-               
+
                 cookieAcceptBtn?.Click();
+            }
+
+            static string CreatePeriod()
+            {
+                string fulldate = date + DateTime.Now.Year;
+
+                DateTime dateFound = DateTime.ParseExact(fulldate, "dd.MM.yyyy", null);
+                DateTime monday = new();
+                if (dateAndWeekdayInfoText.ToLower().Contains("montag"))
+                {
+                    monday = dateFound.AddDays(0);
+                }
+                else if (dateAndWeekdayInfoText.ToLower().Contains("dienstag"))
+                {
+                    monday = dateFound.AddDays(-1);
+                }
+                else if (dateAndWeekdayInfoText.ToLower().Contains("mittwoch"))
+                {
+                    monday = dateFound.AddDays(-2);
+                }
+                else if (dateAndWeekdayInfoText.ToLower().Contains("donnerstag"))
+                {
+                    monday = dateFound.AddDays(-3);
+                }
+                else if (dateAndWeekdayInfoText.ToLower().Contains("freitag"))
+                {
+                    monday = dateFound.AddDays(-4);
+                }
+                else if (dateAndWeekdayInfoText.ToLower().Contains("samstag"))
+                {
+                    monday = dateFound.AddDays(-5);
+                }
+
+                DateTime saturday;
+                saturday = monday.AddDays(5);
+
+                string period = $"vom {monday.Date.ToString("dd.MM.yyyy")} - {saturday.Date.ToString("dd.MM.yyyy")}";
+                return period;
             }
             #endregion
         }

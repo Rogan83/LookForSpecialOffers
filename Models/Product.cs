@@ -10,13 +10,13 @@ namespace LookForSpecialOffers.Models
     {
         public string Name { get; set; }
         public string Description { get; set; }
-        public decimal OldPrice { get; set; }
-        public decimal NewPrice { get; set; }
-        public decimal PricePerKgOrLiter { get; set; }
+        public decimal? OldPrice { get; set; }
+        public decimal? NewPrice { get; set; }
+        public decimal? PricePerKgOrLiter { get; set; }
         public string Badge { get; set; }
         public string OfferStartDate { get; set; }
 
-        public Product(string name, string description, decimal oldPrice, decimal newPrice, decimal pricePerKgOrLiter, string badge, string offerStartDate)
+        public Product(string name, string description, decimal? oldPrice, decimal? newPrice, decimal? pricePerKgOrLiter, string badge, string offerStartDate)
         {
             Name = name;
             Description = description;

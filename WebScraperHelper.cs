@@ -18,6 +18,8 @@ using System.Runtime.InteropServices;
 using System.Collections.ObjectModel;
 using OpenQA.Selenium.DevTools.V120.Preload;
 using LookForSpecialOffers.Models;
+using System.IO;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace LookForSpecialOffers
 {
@@ -97,18 +99,9 @@ namespace LookForSpecialOffers
                     }
                 }
 
-                //Nachdem die Höhe der Seite ermittelt wurde, soll nun Stufenweise die Seite herunter gescrollt werden, damit der Inhalt Stück für Stück
-                //von der Seite nachgeladen werden kann.
-                //long offset = oldScrollHeight / stepsCount;
-                //long distance = newScrollHeight - newPos;           // Die Distanz, die beim Scrollen zurückgelegt werden muss
-
-                //int stepsCount = (int)(distance / scrollStep);
-                //long rest = distance % scrollStep;
-
-                //for (int i = 0; i < stepsCount; i++)
                 while (true)
                 {
-                    int min = 0, max = 0, randomOffset = 0, newScrollStep = 0, newDelayPerStep;
+                    int min, max, randomOffset, newScrollStep, newDelayPerStep;
 
                     min = -(scrollStep / 5);
                     max = scrollStep / 5;
@@ -770,7 +763,7 @@ namespace LookForSpecialOffers
             return element;
         }
 
-        internal static void SaveToExcel(List<Product> products, string period, string path, Discounter discounter)
+        internal static void SaveToExcel(List<Product> products, string period, string excelFilePath, MarketEnum discounter)
         {
             if (products == null)
             {
@@ -778,7 +771,6 @@ namespace LookForSpecialOffers
                 return;
             }
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-            string excelFilePath = path;
 
             ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets.Add(discounter.ToString());
 
@@ -787,15 +779,15 @@ namespace LookForSpecialOffers
             var cellHeadline = worksheet.Cells[1, 1];
             worksheet.Cells["A1:G2"].Merge = true;                  // Bereich verbinden
 
-            if (discounter == Discounter.Penny)
+            if (discounter == MarketEnum.Penny)
                 cellHeadline.Value = $"Die Angebote vom Penny vom {period}";
-            else if (discounter == Discounter.Lidl)
-                cellHeadline.Value = $"Die Angebote vom Lidl";
-            else if (discounter == Discounter.Netto)
+            else if (discounter == MarketEnum.Lidl)
+                cellHeadline.Value = $"Die Angebote vom Lidl {period}";
+            else if (discounter == MarketEnum.Netto)
                 cellHeadline.Value = $"Die Angebote vom Netto";
-            else if (discounter == Discounter.Kaufland)
+            else if (discounter == MarketEnum.Kaufland)
                 cellHeadline.Value = $"Die Angebote vom Kaufland";
-            else if (discounter == Discounter.Aldi)
+            else if (discounter == MarketEnum.Aldi)
                 cellHeadline.Value = $"Die Angebote vom Aldi";
 
 
@@ -805,15 +797,15 @@ namespace LookForSpecialOffers
             worksheet.Cells["A1"].Style.Font.Size = 14;
             cellHeadline.Style.Font.Color.SetColor(Color.Wheat);
 
-            if (discounter == Discounter.Penny)
+            if (discounter == MarketEnum.Penny)
                 HighLightCells(1, 1, 2, columnCount, Color.Red, worksheet);
-            else if (discounter == Discounter.Lidl)
+            else if (discounter == MarketEnum.Lidl)
                 HighLightCells(1, 1, 2, columnCount, Color.Green, worksheet);
-            else if (discounter == Discounter.Netto)
+            else if (discounter == MarketEnum.Netto)
                 HighLightCells(1, 1, 2, columnCount, Color.Yellow, worksheet);
-            else if (discounter == Discounter.Kaufland)
+            else if (discounter == MarketEnum.Kaufland)
                 HighLightCells(1, 1, 2, columnCount, Color.LightPink, worksheet);
-            else if (discounter == Discounter.Aldi)
+            else if (discounter == MarketEnum.Aldi)
                 HighLightCells(1, 1, 2, columnCount, Color.LightSkyBlue, worksheet);
 
             worksheet.Cells[3, 1].Value = "Name";
@@ -907,8 +899,53 @@ namespace LookForSpecialOffers
             {
                 Console.WriteLine("Speichern fehlgeschlagen.");
             }
+        }
 
-            
+        internal static List<Product> LoadFromExcel(string excelFilePath, MarketEnum discounter)
+        {
+            List<Product> productsFromExcel = new List<Product>();
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            // Öffnen der Excel-Datei
+            FileInfo file = new FileInfo(excelFilePath);
+
+            excelPackage = new ExcelPackage(file);
+            ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets[discounter.ToString()];
+
+            if (worksheet == null)
+            {
+                Console.WriteLine("Excel Worksheet wurde nicht gefunden");
+                return productsFromExcel;
+            }
+
+            // Iteriere durch die Zellen und füge den Wert der Liste hinzu
+            for (int row = 4; row <= worksheet.Dimension.End.Row; row++)
+            {
+                string name = "", description = "", badge = "", startDate = "";
+                decimal? oldPrice = 0, newPrice = 0, pricePerKgOrLiter = 0;
+                
+                try
+                {
+                    var nameValue = (string)worksheet.Cells[row, 1].Value;
+                    if (nameValue != null) { name = nameValue.ToString(); }
+                    var descriptionValue = (string)worksheet.Cells[row, 2].Value;
+                    if (descriptionValue != null) { description = descriptionValue.ToString(); }
+                    var oldPriceValue = worksheet.Cells[row, 3].Value;
+                    if (oldPriceValue != null) { oldPrice = decimal.Parse(oldPriceValue.ToString()); }
+                    var newPriceValue = worksheet.Cells[row, 4].Value;
+                    if (newPriceValue != null) { newPrice = decimal.Parse(newPriceValue.ToString()); }
+                    var pricePerKgOrLiterValue = worksheet.Cells[row, 5].Value;
+                    if (pricePerKgOrLiterValue != null) { pricePerKgOrLiter = decimal.Parse(pricePerKgOrLiterValue.ToString()); }
+                    var badgeValue = worksheet.Cells[row, 6].Value;
+                    if (badgeValue != null) { badge = badgeValue.ToString(); }
+                    var startDateValue = (string)worksheet.Cells[row, 7].Value;
+                    if (startDateValue != null) { startDate = startDateValue.ToString(); }
+
+                    productsFromExcel.Add(new Product(name, description, oldPrice, newPrice, pricePerKgOrLiter, badge, startDate));
+                }
+                catch { Console.WriteLine("Fehler beim umwandeln von den Werten von der Excel Tabelle."); }
+            }
+
+            return productsFromExcel;
         }
 
         /// <summary>
@@ -916,7 +953,7 @@ namespace LookForSpecialOffers
         /// </summary>
         /// <param name="excelPath"></param>
         /// <returns></returns>
-        internal static string ExtractHeadlineFromExcel(string excelPath)
+        internal static string ExtractHeadlineFromExcel(string excelPath, MarketEnum marketEnum)
         {
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
@@ -927,7 +964,7 @@ namespace LookForSpecialOffers
                     return string.Empty;
 
                 // Das erste Arbeitsblatt auswählen (Index beginnt bei 0). Es kann aber auch der Name vom Arbeitsblatt angegeben werden
-                ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets["Penny"];
+                ExcelWorksheet worksheet = excelPackage.Workbook.Worksheets[marketEnum.ToString()];
 
                 if (worksheet != null)
                     return (string)worksheet.Cells["A1"].Value;
@@ -952,7 +989,7 @@ namespace LookForSpecialOffers
         /// </summary>
         /// <param name="isNewOffersAvailable"></param>
         /// <param name="allProducts"></param>
-        internal static void InformPerEMail(bool isNewOffersAvailable, Dictionary<Discounter, List<Product>> allProducts)
+        internal static void InformPerEMail(bool isNewOffersAvailable, Dictionary<MarketEnum, List<Product>> allProducts)
         {
             if (isNewOffersAvailable)
             {
