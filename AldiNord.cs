@@ -12,6 +12,12 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using static LookForSpecialOffers.WebScraperHelper;
 
+
+// Todo:
+// - Enddatum muss noch ermittelt werden, damit der gesamte Zeitraum als Header in der Excel Tabelle eingetragen 
+//   werden kann.
+// - Abspeichern in Excel
+// - Überprüfen, ob neues Angebot verfügbar ist.
 namespace LookForSpecialOffers
 {
     internal static class AldiNord
@@ -25,8 +31,8 @@ namespace LookForSpecialOffers
 
             ClickCookieButton(driver);
             //EnterZipCode(driver, Program.ZipCode);       wenn man die plz eingibt, scheint es keine Änderungen von den Produkten zu geben, aber ich bin nicht ganz sicher.
-            //ScrollThroughPage(driver, 100, 1000, 500);
-            ScrollThroughPage(driver, 10, 4000, 500);
+            ScrollThroughPage(driver, 100, 1000, 500);
+            //ScrollThroughPage(driver, 10, 12000, 500);
 
             //Alle Angebote extrahieren
             // Jeder einzelne Container enthält alle relevanten Infos
@@ -53,9 +59,8 @@ namespace LookForSpecialOffers
                 className = "mod-article-tile__brand";
                 description = (string?)GetProductInfo(driver, productInfoContainers[i], className) ?? "";
 
-                //className = "price__main";
                 className = "price__previous";
-                //var temp = GetProductInfo(driver, productInfoContainers[i], className,0);
+                //var temp = GetProductInfo(driver, productInfoContainers[i], className, 0);
                 IWebElement? previousPriceContainer;
                 try
                 {
@@ -96,21 +101,9 @@ namespace LookForSpecialOffers
                     }
                 }
                 
-                //string xpath = $"//parent::*/parent::*/parent::*[contains(@class, 'mod-tile-group')]/h2";
-                //string xpath = $"//ancestor::*[position() = 1])[1]";
-                //var parent = (IWebElement?)Searching(productInfoContainers[i], driver, xpath,
-                //    KindOfSearchElement.FindElementByXPath);
-                //var parent = productInfoContainers[i].FindElement(By.XPath("//ancestor::*[position() = 1]"));
-                //var parent = productInfoContainers[i].FindElement(By.XPath("../../../h2"));
-                string xpath = "../../../h2";
+                string xpath = "../../../..//h2";
                 var parent = (IWebElement?)Searching(productInfoContainers[i], driver, xpath,
                     KindOfSearchElement.FindElementByXPath);
-                if (parent == null) 
-                {
-                    xpath = "../../../../h2";
-                    parent = (IWebElement?)Searching(productInfoContainers[i], driver, xpath,
-                    KindOfSearchElement.FindElementByXPath);
-                }
 
                 if (parent != null)
                     startDate = parent.Text;
