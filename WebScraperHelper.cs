@@ -73,6 +73,12 @@ namespace LookForSpecialOffers
         /// <param name="stepsCount"></param>
         internal static void ScrollThroughPage(IWebDriver driver, int delayPerStep = 50, int scrollStep = 2000, int delayDetermineScrollHeigth = 500)
         {
+            // Öffnet einen neuen Tab
+            string newWindowHandle = driver.WindowHandles.Last();
+
+            // Wechsel zu den neuen Tab
+            driver.SwitchTo().Window(newWindowHandle);
+            
             Random rand = new Random();
 
             IJavaScriptExecutor js = (IJavaScriptExecutor)driver;
@@ -120,7 +126,6 @@ namespace LookForSpecialOffers
                     // Scrolle stufenweise bis zum Ende der Seite
                     ((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, {newPos});");
 
-
                     // Warte eine kurze zufällige Zeit, um ein Stück weiter herunter zu scrollen.
                     min = -(delayPerStep / 2); 
                     max = delayPerStep / 2;
@@ -145,6 +150,12 @@ namespace LookForSpecialOffers
             //newScrollHeight = (long)js.ExecuteScript("return document.body.scrollHeight;");
             //((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, {newScrollHeight});");
         }
+
+        //internal static void S()
+        //{
+        //    SendInput.SendKeyDown(Keys.Down);
+        //}
+
 
         /// <summary>
         /// Überprüft, ob der Begriff in dem anderen Begriff vorkommt.
@@ -787,7 +798,7 @@ namespace LookForSpecialOffers
                 cellHeadline.Value = $"Die Angebote vom Netto";
             else if (discounter == MarketEnum.Kaufland)
                 cellHeadline.Value = $"Die Angebote vom Kaufland";
-            else if (discounter == MarketEnum.Aldi)
+            else if (discounter == MarketEnum.AldiNord)
                 cellHeadline.Value = $"Die Angebote vom Aldi";
 
 
@@ -805,7 +816,7 @@ namespace LookForSpecialOffers
                 HighLightCells(1, 1, 2, columnCount, Color.Yellow, worksheet);
             else if (discounter == MarketEnum.Kaufland)
                 HighLightCells(1, 1, 2, columnCount, Color.LightPink, worksheet);
-            else if (discounter == MarketEnum.Aldi)
+            else if (discounter == MarketEnum.AldiNord)
                 HighLightCells(1, 1, 2, columnCount, Color.LightSkyBlue, worksheet);
 
             worksheet.Cells[3, 1].Value = "Name";

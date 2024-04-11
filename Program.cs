@@ -82,7 +82,7 @@ namespace LookForSpecialOffers
                 {
                     { "Penny", true },
                     { "Lidl", false },
-                    { "Aldi", false },
+                    { "Aldi Nord", false },
                     { "Netto", false },
                     { "Kaufland", false }
                 };
@@ -94,10 +94,12 @@ namespace LookForSpecialOffers
             //List<Product> p = LoadFromExcel(ExcelFilePath, Discounter.Penny);
 
             ChromeOptions options = new ChromeOptions();
-            options.AddArgument("--headless");              //öffnet die Seiten im Hintergrund
+            //FirefoxOptions options = new();
+            //options.AddArgument("--headless");              //öffnet die Seiten im Hintergrund
             using (IWebDriver driver = new ChromeDriver(options))
+            //using (IWebDriver driver = new FirefoxDriver(options))
             {
-                //driver.Manage().Window.Maximize();
+                driver.Manage().Window.Maximize();
                 //driver.Manage().Window.Minimize();
 
                 // Extrahiert die Daten wie Artikelnamen, Preis etc. von bestimmten Webseiten von Discountern und anderen Supermärkten.
@@ -116,6 +118,15 @@ namespace LookForSpecialOffers
                     {
                         string periodheadline = ExtractHeadlineFromExcel(ExcelFilePath, MarketEnum.Lidl);
                         Lidl.ExtractOffers(driver, periodheadline);
+                    }
+                }
+
+                if (Markets["Aldi Nord"] != null)
+                {
+                    if (Markets["Aldi Nord"].Value == true)
+                    {
+                        string periodheadline = ExtractHeadlineFromExcel(ExcelFilePath, MarketEnum.AldiNord);
+                        AldiNord.ExtractOffers(driver, periodheadline);
                     }
                 }
 

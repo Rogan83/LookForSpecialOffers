@@ -11,7 +11,7 @@ namespace LookForSpecialOffers.Enums
         Penny,
         Lidl,
         Netto,
-        Aldi,
+        AldiNord,
         Kaufland
     }
 }

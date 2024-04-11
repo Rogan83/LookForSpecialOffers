@@ -29,7 +29,7 @@ namespace LookForSpecialOffers
             driver.Navigate().GoToUrl(pathMainPage);
 
             ClickCookieButton(driver);
-            EnterZipCode(driver, Program.ZipCode);
+            EnterZipCode(driver, Program.ZipCode, pathMainPage);
             ScrollThroughPage(driver, 300, 2000, 500);         // Es scheint so, dass es wichtig ist, dass man das herunterscrollen in vielen kleinen Steps einzuteilen, wichtig ist
 
             //Suche nach dem Element, wo alle links von der Kopfzeile vorhanden sind
@@ -265,7 +265,7 @@ namespace LookForSpecialOffers
             }
 
             // Gibt die Postleitzahl ein, damit regionale Angebote angezeigt werden kann
-            static void EnterZipCode(IWebDriver driver, string zipCode)
+            static void EnterZipCode(IWebDriver driver, string zipCode, string pathMainPage)
             {
                 if (zipCode.Length != 5)
                     return;
@@ -301,6 +301,8 @@ namespace LookForSpecialOffers
 
                 if (chooseMarketBtn != null)
                     ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", chooseMarketBtn);
+                else
+                    driver.Navigate().GoToUrl(pathMainPage);
             }
             #endregion
         }
