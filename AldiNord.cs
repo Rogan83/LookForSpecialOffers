@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using static LookForSpecialOffers.WebScraperHelper;
@@ -20,17 +21,54 @@ namespace LookForSpecialOffers
 
             driver.Navigate().GoToUrl(pathMainPage);
 
-            //Test
-            //driver.Navigate().GoToUrl("https://www.jabra.com.de/?gad_source=1&gclid=EAIaIQobChMI3Jqg4Zy6hQMVQ6iDBx3HaAylEAAYASAAEgIeefD_BwE");
-            //((IJavaScriptExecutor)driver).ExecuteScript($"window.scrollTo(0, 2000);");
-
-
             ClickCookieButton(driver);
-            EnterZipCode(driver, Program.ZipCode);
-            ScrollThroughPage(driver, 300, 500, 2000);
+            //EnterZipCode(driver, Program.ZipCode);       wenn man die plz eingibt, scheint es keine Änderungen von den Produkten zu geben, aber ich bin nicht ganz sicher.
+            ScrollThroughPage(driver, 100, 1000, 500);
 
-            int i = 0;
+            //Alle Angebote extrahieren
+            // Jeder einzelne Container enthält alle relevanten Infos
+            string className = "mod-article-tile__content";
+            ReadOnlyCollection<IWebElement?>? productInfoContainers = (ReadOnlyCollection<IWebElement?>?)Searching(driver,
+                className, KindOfSearchElement.FindElementsByClassName,500,2);
 
+            if (productInfoContainers == null)
+            {
+                Console.WriteLine("Es wurden keine Produkte gefunden.");
+                return;
+            }
+            for (int i = 0; i < productInfoContainers.Count; i++)
+            {
+                //Product(articleName, description, oldPrice, newPrice, articlePricePerKg, badge, startDate);
+
+                string description, articleName, badge,
+                       startDate;
+                decimal oldPrice = 0, newPrice = 0, articlePricePerKg = 0;
+
+                className = "mod-article-tile__title";
+                articleName = (string?)GetProductInfo(driver, productInfoContainers[i], className) ?? "";
+
+                className = "mod-article-tile__brand";
+                description = (string?)GetProductInfo(driver, productInfoContainers[i], className) ?? "";
+
+                //className = "price__main";
+                className = "price__previous";
+                var temp = GetProductInfo(driver, productInfoContainers[i], className);
+                if (temp != null)
+                {
+                    temp = temp.Replace(".", ",");
+                    decimal.TryParse(temp, out oldPrice);
+                }
+
+                className = "price__wrapper";
+                temp = GetProductInfo(driver, productInfoContainers[i], className);
+                if (temp != null)
+                {
+                    temp = temp.Replace(".", ",");
+                    decimal.TryParse(temp, out newPrice);
+                }
+            }
+
+            int test = 0;
 
             #region Nested Methods
             static void ClickCookieButton(IWebDriver driver)
@@ -39,7 +77,7 @@ namespace LookForSpecialOffers
                 // d.h. dass die Elemente, die sich darin befinden, von außen geschützt sind. Deswegen muss erst auf den
                 // Shadow Root zugegriffen werden und von dort aus kann nach den Elementen darin gesucht werden.
                 string id = "usercentrics-root";
-                IWebElement? parent = (IWebElement?)Searching(driver, $"//*[@id='{id}']", KindOfSearchElement.FindElementByXPath, 500, 10,
+                IWebElement? parent = (IWebElement?)Searching(driver, $"//*[@id='{id}']", KindOfSearchElement.FindElementByXPath, 500, 3,
                     $"Das Element mit der Id {id} wurde nicht gefunden");
 
                 ShadowRoot shadowRoot = (ShadowRoot)((IJavaScriptExecutor)driver).ExecuteScript("return arguments[0].shadowRoot", parent);
@@ -113,6 +151,24 @@ namespace LookForSpecialOffers
                 IWebElement? chooseMarket = (IWebElement?)Searching(driver, cssName,
                     KindOfSearchElement.FindElementByCssSelector);
                 ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", chooseMarket);
+            }
+
+            static string? GetProductInfo(IWebDriver driver, IWebElement? productInfoContainer 
+                ,string className, int maxWaitTime = 1)
+            {
+                IWebElement? infoContainer = (IWebElement?)Searching(productInfoContainer, driver,
+                                    className, KindOfSearchElement.FindElementByClassName, 500, maxWaitTime);
+                string? info = null;
+                if (infoContainer != null)
+                {
+                    info = infoContainer.Text;
+                }
+                if (info != null)
+                {
+                    string[] parts = info.Split('\r');
+                    return parts[0];
+                }
+                return null;
             }
             #endregion
         }

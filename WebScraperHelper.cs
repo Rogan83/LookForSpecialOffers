@@ -237,6 +237,13 @@ namespace LookForSpecialOffers
                             }
                             catch { return null; }
 
+                        case KindOfSearchElement.FindElementsByClassName:
+                            try
+                            {
+                                return driver.FindElements(By.ClassName(searchName));
+                            }
+                            catch { return null; }
+
                         case KindOfSearchElement.FindElementByXPath:
                             try
                             {
