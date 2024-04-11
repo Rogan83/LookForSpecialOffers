@@ -1,4 +1,5 @@
 ﻿using LookForSpecialOffers.Enums;
+using LookForSpecialOffers.Models;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Interactions;
 using System;
@@ -7,6 +8,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using static LookForSpecialOffers.WebScraperHelper;
 
@@ -14,7 +16,7 @@ namespace LookForSpecialOffers
 {
     internal static class AldiNord
     {
-
+        internal static List<Product> Products { get; set; } = new();
         internal static void ExtractOffers(IWebDriver driver, string oldPeriodHeadline)
         {
             string pathMainPage = "https://www.aldi-nord.de/angebote.html";
@@ -23,7 +25,8 @@ namespace LookForSpecialOffers
 
             ClickCookieButton(driver);
             //EnterZipCode(driver, Program.ZipCode);       wenn man die plz eingibt, scheint es keine Änderungen von den Produkten zu geben, aber ich bin nicht ganz sicher.
-            ScrollThroughPage(driver, 100, 1000, 500);
+            //ScrollThroughPage(driver, 100, 1000, 500);
+            ScrollThroughPage(driver, 10, 4000, 500);
 
             //Alle Angebote extrahieren
             // Jeder einzelne Container enthält alle relevanten Infos
@@ -42,7 +45,7 @@ namespace LookForSpecialOffers
 
                 string description, articleName, badge,
                        startDate;
-                decimal oldPrice = 0, newPrice = 0, articlePricePerKg = 0;
+                decimal oldPrice = 0, newPrice = 0, pricePerKg = 0;
 
                 className = "mod-article-tile__title";
                 articleName = (string?)GetProductInfo(driver, productInfoContainers[i], className) ?? "";
@@ -52,23 +55,72 @@ namespace LookForSpecialOffers
 
                 //className = "price__main";
                 className = "price__previous";
-                var temp = GetProductInfo(driver, productInfoContainers[i], className);
-                if (temp != null)
+                //var temp = GetProductInfo(driver, productInfoContainers[i], className,0);
+                IWebElement? previousPriceContainer;
+                try
                 {
-                    temp = temp.Replace(".", ",");
-                    decimal.TryParse(temp, out oldPrice);
+                    previousPriceContainer = productInfoContainers[i].FindElement(By.ClassName(className));
+                }
+                catch
+                {
+                    Console.WriteLine("Vorheriger Preis nicht gefunden.");
+                    previousPriceContainer = null;
+                }
+                if (previousPriceContainer != null)
+                {
+                    string tempText = previousPriceContainer.Text;
+                    tempText = tempText.Replace(".", ",");
+                    decimal.TryParse(tempText, out oldPrice);
                 }
 
                 className = "price__wrapper";
-                temp = GetProductInfo(driver, productInfoContainers[i], className);
+                var temp = GetProductInfo(driver, productInfoContainers[i], className);
                 if (temp != null)
                 {
                     temp = temp.Replace(".", ",");
                     decimal.TryParse(temp, out newPrice);
                 }
+
+                className = "price__base";
+                temp = GetProductInfo(driver, productInfoContainers[i], className);
+                if (temp != null)
+                {
+                    string pattern = @"(?:\d+)?[.,]?\d+";
+                    Regex regex = new Regex(pattern);
+
+                    Match match = regex.Match(temp);
+                    if (match.Success)
+                    {
+                        temp = match.Value.Replace(".", ",");
+                        decimal.TryParse(temp, out pricePerKg);
+                    }
+                }
+                
+                //string xpath = $"//parent::*/parent::*/parent::*[contains(@class, 'mod-tile-group')]/h2";
+                //string xpath = $"//ancestor::*[position() = 1])[1]";
+                //var parent = (IWebElement?)Searching(productInfoContainers[i], driver, xpath,
+                //    KindOfSearchElement.FindElementByXPath);
+                //var parent = productInfoContainers[i].FindElement(By.XPath("//ancestor::*[position() = 1]"));
+                //var parent = productInfoContainers[i].FindElement(By.XPath("../../../h2"));
+                string xpath = "../../../h2";
+                var parent = (IWebElement?)Searching(productInfoContainers[i], driver, xpath,
+                    KindOfSearchElement.FindElementByXPath);
+                if (parent == null) 
+                {
+                    xpath = "../../../../h2";
+                    parent = (IWebElement?)Searching(productInfoContainers[i], driver, xpath,
+                    KindOfSearchElement.FindElementByXPath);
+                }
+
+                if (parent != null)
+                    startDate = parent.Text;
+                else
+                    startDate = string.Empty;
+
+                Products.Add(new Product(articleName, description, oldPrice, newPrice, pricePerKg, "", startDate));
             }
 
-            int test = 0;
+            int bla = 0;
 
             #region Nested Methods
             static void ClickCookieButton(IWebDriver driver)
