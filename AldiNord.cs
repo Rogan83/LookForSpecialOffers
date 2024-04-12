@@ -11,6 +11,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using static LookForSpecialOffers.WebScraperHelper;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 
 // Todo:
@@ -30,9 +31,9 @@ namespace LookForSpecialOffers
             driver.Navigate().GoToUrl(pathMainPage);
 
             ClickCookieButton(driver);
-            //EnterZipCode(driver, Program.ZipCode);       wenn man die plz eingibt, scheint es keine Änderungen von den Produkten zu geben, aber ich bin nicht ganz sicher.
+            EnterZipCode(driver, Program.ZipCode);          //wenn man die plz eingibt, scheint es keine Änderungen von den Produkten zu geben, aber ich bin nicht ganz sicher.
             ScrollThroughPage(driver, 100, 1000, 500);
-            //ScrollThroughPage(driver, 10, 12000, 500);
+            //ScrollThroughPage(driver, 10, 12000, 500);    // schnelldurchlauf, aber dadurch werden nicht alle Elemente geladen
 
             //Alle Angebote extrahieren
             // Jeder einzelne Container enthält alle relevanten Infos
@@ -45,41 +46,32 @@ namespace LookForSpecialOffers
                 Console.WriteLine("Es wurden keine Produkte gefunden.");
                 return;
             }
+            string dateText = string.Empty;
+            bool isDateFound = false;
             for (int i = 0; i < productInfoContainers.Count; i++)
             {
-                //Product(articleName, description, oldPrice, newPrice, articlePricePerKg, badge, startDate);
+                if (productInfoContainers[i] == null) { continue; }
 
-                string description, articleName, badge,
-                       startDate;
+                string description, articleName, badge = string.Empty,
+                       categoryInfo;
                 decimal oldPrice = 0, newPrice = 0, pricePerKg = 0;
 
                 className = "mod-article-tile__title";
-                articleName = (string?)GetProductInfo(driver, productInfoContainers[i], className) ?? "";
+                articleName = (GetProductInfo(driver, productInfoContainers[i], className) ?? "").Trim();
 
                 className = "mod-article-tile__brand";
-                description = (string?)GetProductInfo(driver, productInfoContainers[i], className) ?? "";
+                description = (GetProductInfo(driver, productInfoContainers[i], className) ?? "").Trim();
 
                 className = "price__previous";
-                //var temp = GetProductInfo(driver, productInfoContainers[i], className, 0);
-                IWebElement? previousPriceContainer;
-                try
+                var temp = GetProductInfo(driver, productInfoContainers[i], className, 0);
+                if (temp != null)
                 {
-                    previousPriceContainer = productInfoContainers[i].FindElement(By.ClassName(className));
-                }
-                catch
-                {
-                    Console.WriteLine("Vorheriger Preis nicht gefunden.");
-                    previousPriceContainer = null;
-                }
-                if (previousPriceContainer != null)
-                {
-                    string tempText = previousPriceContainer.Text;
-                    tempText = tempText.Replace(".", ",");
-                    decimal.TryParse(tempText, out oldPrice);
+                    temp = temp.Replace(".", ",");
+                    decimal.TryParse(temp, out oldPrice);
                 }
 
                 className = "price__wrapper";
-                var temp = GetProductInfo(driver, productInfoContainers[i], className);
+                temp = GetProductInfo(driver, productInfoContainers[i], className);
                 if (temp != null)
                 {
                     temp = temp.Replace(".", ",");
@@ -106,14 +98,44 @@ namespace LookForSpecialOffers
                     KindOfSearchElement.FindElementByXPath);
 
                 if (parent != null)
-                    startDate = parent.Text;
+                {
+                    categoryInfo = parent.Text;
+                    // es soll das erste gefundene Datum gespeichert werden, damit der gesamte Zeitraum
+                    // der Aktionen mit der Methode 'CreatePeriod' ermittelt werden kann.
+                    if (!isDateFound)
+                    {
+                        dateText = parent.Text;
+                        isDateFound = true;
+                    }
+                }
                 else
-                    startDate = string.Empty;
+                    categoryInfo = string.Empty;
 
-                Products.Add(new Product(articleName, description, oldPrice, newPrice, pricePerKg, "", startDate));
+                string patternStartDate = @"[\w. ]* (\d{2}.\d{2}.(\d{4}|\d{2}|\d{0}))";
+                Regex regexStartDate = new Regex(patternStartDate);
+                Match matchStartDate = regexStartDate.Match(categoryInfo);
+
+                string startDate = string.Empty;
+
+                if (matchStartDate.Success)
+                {
+                    startDate = matchStartDate.Value;
+                }
+
+                Products.Add(new Product(articleName, description, oldPrice, newPrice, pricePerKg, badge, startDate));
             }
 
-            int bla = 0;
+            string period = CreatePeriod(dateText);
+
+            if (oldPeriodHeadline == string.Empty || !oldPeriodHeadline.Contains(period))
+            {
+                Program.IsNewOffersAvailable = true;
+            }
+
+            SaveToExcel(Products, period, Program.ExcelFilePath, MarketEnum.AldiNord);
+
+            Program.AllProducts[MarketEnum.AldiNord] = new List<Product>(Products);
+
 
             #region Nested Methods
             static void ClickCookieButton(IWebDriver driver)
@@ -214,6 +236,64 @@ namespace LookForSpecialOffers
                     return parts[0];
                 }
                 return null;
+            }
+
+            static string CreatePeriod(string infoText)
+            {
+                string date = string.Empty;
+                string datePattern = @"(\d{2}.\d{2}.)";
+
+                Regex regexDate = new Regex(datePattern);
+                Match matchDate = regexDate.Match(infoText);
+                if (matchDate.Success)
+                {
+                    date = matchDate.Value;
+                }
+                else
+                {
+                    Console.WriteLine("Der Zeitraum, von wann bis wann die Angebote gültig sind, konnte nicht erstellt werden.");
+                    return string.Empty;
+                }
+
+                string fulldate = date + DateTime.Now.Year;
+
+                DateTime dateFound = DateTime.ParseExact(fulldate, "dd.MM.yyyy", null);
+                DateTime monday;
+                if (infoText.ToLower().Contains("mo.") || infoText.ToLower().Contains("montag"))
+                {
+                    monday = dateFound.AddDays(0);
+                }
+                else if (infoText.ToLower().Contains("di.") || infoText.ToLower().Contains("dienstag"))
+                {
+                    monday = dateFound.AddDays(-1);
+                }
+                else if (infoText.ToLower().Contains("mi.") || infoText.ToLower().Contains("mittwoch"))
+                {
+                    monday = dateFound.AddDays(-2);
+                }
+                else if (infoText.ToLower().Contains("do.") || infoText.ToLower().Contains("donnerstag"))
+                {
+                    monday = dateFound.AddDays(-3);
+                }
+                else if (infoText.ToLower().Contains("fr.") || infoText.ToLower().Contains("freitag"))
+                {
+                    monday = dateFound.AddDays(-4);
+                }
+                else if (infoText.ToLower().Contains("sa.") || infoText.ToLower().Contains("samstag"))
+                {
+                    monday = dateFound.AddDays(-5);
+                }
+                else
+                {
+                    Console.WriteLine("Der Zeitraum, von wann bis wann die Angebote gültig sind, konnte nicht erstellt werden.");
+                    return string.Empty;
+                }
+
+                DateTime saturday;
+                saturday = monday.AddDays(5);
+
+                string period = $"vom {monday.Date.ToString("dd.MM.yyyy")} - {saturday.Date.ToString("dd.MM.yyyy")}";
+                return period;
             }
             #endregion
         }

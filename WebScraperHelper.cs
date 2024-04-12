@@ -806,7 +806,7 @@ namespace LookForSpecialOffers
             else if (discounter == MarketEnum.Kaufland)
                 cellHeadline.Value = $"Die Angebote vom Kaufland";
             else if (discounter == MarketEnum.AldiNord)
-                cellHeadline.Value = $"Die Angebote vom Aldi";
+                cellHeadline.Value = $"Die Angebote vom Aldi Nord {period}";
 
 
             // Überschrift formatieren
@@ -816,15 +816,15 @@ namespace LookForSpecialOffers
             cellHeadline.Style.Font.Color.SetColor(Color.Wheat);
 
             if (discounter == MarketEnum.Penny)
-                HighLightCells(1, 1, 2, columnCount, Color.Red, worksheet);
+                HighLightCells(1, 1, 2, columnCount, worksheet, Color.Red, Color.LightPink);
             else if (discounter == MarketEnum.Lidl)
-                HighLightCells(1, 1, 2, columnCount, Color.Green, worksheet);
+                HighLightCells(1, 1, 2, columnCount, worksheet, Color.Green, Color.LightGreen);
             else if (discounter == MarketEnum.Netto)
-                HighLightCells(1, 1, 2, columnCount, Color.Yellow, worksheet);
+                HighLightCells(1, 1, 2, columnCount, worksheet, Color.Yellow, Color.LightYellow);
             else if (discounter == MarketEnum.Kaufland)
-                HighLightCells(1, 1, 2, columnCount, Color.LightPink, worksheet);
+                HighLightCells(1, 1, 2, columnCount, worksheet, Color.LightPink, Color.DarkRed);
             else if (discounter == MarketEnum.AldiNord)
-                HighLightCells(1, 1, 2, columnCount, Color.LightSkyBlue, worksheet);
+                HighLightCells(1, 1, 2, columnCount, worksheet, Color.SkyBlue, Color.DarkBlue);
 
             worksheet.Cells[3, 1].Value = "Name";
             worksheet.Cells[3, 2].Value = "Bezeichnung";
@@ -835,7 +835,7 @@ namespace LookForSpecialOffers
             worksheet.Cells[3, 7].Value = "Beginn";
 
             // Beschriftung formatieren
-            HighLightCells(3, 1, 3, columnCount, Color.Gray, worksheet);
+            HighLightCells(3, 1, 3, columnCount, worksheet, Color.Gray);
 
             int offsetRow = 4;
 
@@ -865,7 +865,7 @@ namespace LookForSpecialOffers
 
                 if (i % 2 == 1)
                 {
-                    HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightGray, worksheet);
+                    HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, worksheet, Color.LightGray);
                 }
 
                 // Überprüfe, ob eines der interessanten Produkten mit dabei ist. Falls ja, dann verändere die Hintergrundfarbe
@@ -878,16 +878,16 @@ namespace LookForSpecialOffers
                         {
                             if (products[i].NewPrice <= interestingProduct.PriceCapPerKg && products[i].NewPrice != 0)
                             {
-                                HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
+                                HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, worksheet, Color.LightCoral);
                             }
                         }
                         else if (products[i].PricePerKgOrLiter <= interestingProduct.PriceCapPerKg && products[i].PricePerKgOrLiter != 0)      
                         {
-                            HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.LightCoral, worksheet);
+                            HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, worksheet, Color.LightCoral);
                         }
                         else
                         {
-                            HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, Color.Yellow, worksheet);
+                            HighLightCells(i + offsetRow, 1, i + offsetRow, columnCount, worksheet, Color.Yellow);
                         }
                     }
                 }
@@ -895,12 +895,13 @@ namespace LookForSpecialOffers
                 //static void HighLightCells(int row, int offsetRow, int columnCount, Color color, ExcelWorksheet worksheet)  
 
             }
-            static void HighLightCells(int fromRow, int fromCol, int toRow, int toCol, Color color, ExcelWorksheet worksheet)
+            static void HighLightCells(int fromRow, int fromCol, int toRow, int toCol, ExcelWorksheet worksheet, Color backgroundColor, Color foregroundColor = default)
             {
                 //var style = worksheet.Cells[row + offsetRow, 1, row + offsetRow, columnCount].Style;            // Bereich auswählen, welcher farblich geändert werden soll
                 var style = worksheet.Cells[fromRow, fromCol, toRow, toCol].Style;            // Bereich auswählen, welcher farblich geändert werden soll
                 style.Fill.PatternType = ExcelFillStyle.Solid;                                          // Bereich wird mit einer einheitlichen Farbe ohne Farbverlauf oder Muster eingefärbt
-                style.Fill.BackgroundColor.SetColor(color);
+                style.Fill.BackgroundColor.SetColor(backgroundColor);
+                style.Font.Color.SetColor(foregroundColor);
             }
             //Spaltenbreite automatisch anpassen
             for (int i = 1; i <= columnCount; i++)
@@ -1013,6 +1014,7 @@ namespace LookForSpecialOffers
             {
                 int interestingOfferCounter = 0;
                 string offers = string.Empty;
+                List<string> marketsWithInterestingOffers = new();
                 // Als nächstes soll untersucht werden, ob von den interessanten Angeboten der Preis auch niedrig genug ist.
                 foreach (var products in allProducts)
                 {
@@ -1027,11 +1029,16 @@ namespace LookForSpecialOffers
                                 // dass entweder die Menge schon ein Kilo entspricht oder dass sich der Preis pro Produkt bezieht.
                                 if (product.PricePerKgOrLiter == 0)
                                 {
-                                    if (product.NewPrice <= interestingProduct.PriceCapPerKg && product.NewPrice != 0)
+                                    if (product.NewPrice <= interestingProduct.PriceCapPerProduct && product.NewPrice != 0)
                                     {
                                         offers += $" {product.Name} {product.Description} vom Anbieter {marketName} {product.OfferStartDate}" +
                                             $" für nur {product.NewPrice}€.\n";
                                         interestingOfferCounter++;
+
+                                        if (!marketsWithInterestingOffers.Contains(marketName))
+                                        {
+                                            marketsWithInterestingOffers.Add(marketName);
+                                        }
                                     }
                                 }
                                 else if (product.PricePerKgOrLiter <= interestingProduct.PriceCapPerKg && product.PricePerKgOrLiter != 0)
@@ -1039,6 +1046,11 @@ namespace LookForSpecialOffers
                                     offers += $" {product.Name} {product.Description} vom Anbieter {marketName} {product.OfferStartDate}" +
                                         $" für nur {product.NewPrice}€ ({product.PricePerKgOrLiter}€ pro Kg).\n";
                                     interestingOfferCounter++;
+
+                                    if (!marketsWithInterestingOffers.Contains(marketName))
+                                    {
+                                        marketsWithInterestingOffers.Add(marketName);
+                                    }
                                 }
                             }
                         }
@@ -1061,10 +1073,25 @@ namespace LookForSpecialOffers
 
                 if (interestingOfferCounter > 0)
                 {
-                    body += "\nHier sind die Links zu den Anbietern: \n\n" +
-                            "https://www.penny.de/angebote \n" +
-                            "https://www.lidl.de/store \n\n" +
-                            "Viel Spaß beim Einkaufen!";
+                    if (marketsWithInterestingOffers.Count > 1)
+                        body += "\nHier sind die Links zu den Anbietern: \n\n";
+                    else
+                        body += "\nHier ist der Link zum Anbieter: \n\n";
+
+                    foreach (var market in marketsWithInterestingOffers)
+                    {
+                        if (market.ToLower() == "penny")
+                            body += "https://www.penny.de/angebote \n";
+                        if (market.ToLower() == "lidl")
+                            body += "https://www.lidl.de/store \n";
+                        if (market.ToLower() == "aldinord")
+                            body += "https://www.aldi-nord.de/angebote.html \n";
+                    }
+                    
+                    body += "\nViel Spaß beim Einkaufen!";
+                    //"https://www.penny.de/angebote \n" +
+                    //"https://www.lidl.de/store \n\n" +
+                    //"Viel Spaß beim Einkaufen!";
 
                     SendEMail(Program.Email, subject, body);
                 }
