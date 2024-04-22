@@ -1099,14 +1099,14 @@ namespace LookForSpecialOffers
             void SendEMail(string mailAdress, string subject, string body)
             {
                 // E-Mail-Einstellungen
-                string senderEmail = "d.rothweiler83@gmx.de";
+                string senderEmail = "****";
                 string receiverEmail = mailAdress;
 
                 // SMTP-Server-Einstellungen
                 string smtpServer = "mail.gmx.net";
                 int smtpPort = 587; // Standard-Port für SMTP ist 587
-                string smtpUsername = "d.rothweiler83@gmx.de";
-                string smtpPassword = "41149512dominic";
+                string smtpUsername = "****";
+                string smtpPassword = "****";
 
                 // Erstellen Sie eine neue SMTP-Clientinstanz
                 SmtpClient client = new SmtpClient(smtpServer, smtpPort);
