@@ -48,9 +48,6 @@ namespace LookForSpecialOffers
         internal static string ExcelFilePath { get; set; } = "Angebote.xlsx";
 
         internal static string Email { get; set; } = string.Empty;
-        //internal static string Email { get; set; } = "d.rothweiler@yahoo.de";
-        //static string EMail { get; set; } = "hadess90@web.de";
-        //static string EMail { get; set; } = "tubadogan.85@googlemail.com";
 
         internal static string ZipCode { get; set; } = string.Empty;
 
