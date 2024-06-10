@@ -19,13 +19,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using static LookForSpecialOffers.WebScraperHelper;
 
-
-//Bug:
-// - Wenn das Fenster minimiert ist funktioniert die Datenextration nicht richtig. Ansonsten
-// scheint es zu funktionieren.
-
-//Todo:
-
 namespace LookForSpecialOffers
 {
     internal class Lidl
@@ -73,18 +66,6 @@ namespace LookForSpecialOffers
             {
                 Program.IsNewOffersAvailable = true;
             }
-
-
-            // Die Produkte von der Excel Tabelle
-            //var loadedProducts = LoadFromExcel(Program.ExcelFilePath, Discounter.Lidl);
-            //// Überprüft, ob die beiden Listen identisch sind.
-            //var isEpual = loadedProducts.SequenceEqual(Products);
-            //if (!isEpual)
-            //{
-            //    // Wenn die Listen nicht identisch sind, dann gibt es neue Angebote und der User soll über diese per
-            //    // E-mail informiert werden.
-            //    Program.IsNewOffersAvailable = true;
-            //}
 
             SaveToExcel(Products, period, Program.ExcelFilePath, MarketEnum.Lidl);
 
@@ -168,9 +149,7 @@ namespace LookForSpecialOffers
                         isDateFound = true;
                     }
                 }
-                //Debug Test
-                //return;
-
+                
                 ScrollThroughPage(driver, 300, 1000, 100);
 
                 IWebElement? mainDivContainer = null;       //Hauptcontainer
