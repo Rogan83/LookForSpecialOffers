@@ -13,12 +13,6 @@ using System.Threading.Tasks;
 using static LookForSpecialOffers.WebScraperHelper;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
-
-// Todo:
-// - Enddatum muss noch ermittelt werden, damit der gesamte Zeitraum als Header in der Excel Tabelle eingetragen 
-//   werden kann.
-// - Abspeichern in Excel
-// - Überprüfen, ob neues Angebot verfügbar ist.
 namespace LookForSpecialOffers
 {
     internal static class AldiNord
@@ -297,7 +291,5 @@ namespace LookForSpecialOffers
             }
             #endregion
         }
-
-
     }
 }
